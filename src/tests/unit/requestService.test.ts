@@ -31,6 +31,13 @@ describe("requestService", () => {
     const request = await createRequest("user-1", 79, { targetPersonName: "Ada Lovelace" });
 
     expect(request.status).toBe("PENDING");
+    expect(mockedPrisma.request.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "PENDING"
+        })
+      })
+    );
     expect(mockedPrisma.person.update).not.toHaveBeenCalled();
   });
 
@@ -41,6 +48,13 @@ describe("requestService", () => {
     const request = await createRequest("user-1", 80, { targetPersonName: "Ada Lovelace" });
 
     expect(request.status).toBe("APPROVED");
+    expect(mockedPrisma.request.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "APPROVED"
+        })
+      })
+    );
     expect(mockedPrisma.person.update).toHaveBeenCalledWith({
       where: { id: "person-1" },
       data: { isPublic: true }
@@ -57,6 +71,13 @@ describe("requestService", () => {
     const request = await createRequest("user-1", 90, { targetPersonName: "Ada Lovelace" });
 
     expect(request.status).toBe("PENDING");
+    expect(mockedPrisma.request.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "PENDING"
+        })
+      })
+    );
     expect(mockedPrisma.person.update).not.toHaveBeenCalled();
   });
 

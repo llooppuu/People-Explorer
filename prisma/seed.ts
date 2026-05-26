@@ -1,7 +1,59 @@
 import bcrypt from "bcrypt";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, SourceType } from "@prisma/client";
 
 const prisma = new PrismaClient();
+
+type DataSourceSeed = {
+  name: string;
+  baseUrl: string;
+  sourceType: SourceType;
+};
+
+type PersonSeed = {
+  fullName: string;
+  role: string;
+  category: string;
+  isPublic: boolean;
+  biography: string;
+};
+
+async function upsertDataSourceByName(data: DataSourceSeed) {
+  const existing = await prisma.dataSource.findFirst({ where: { name: data.name } });
+
+  if (existing) {
+    return existing;
+  }
+
+  return prisma.dataSource.create({ data });
+}
+
+async function upsertPersonByFullName(data: PersonSeed) {
+  const existing = await prisma.person.findFirst({ where: { fullName: data.fullName } });
+
+  if (existing) {
+    return prisma.person.update({
+      where: { id: existing.id },
+      data
+    });
+  }
+
+  return prisma.person.create({ data });
+}
+
+async function createReferenceIfMissing(data: {
+  personId: string;
+  dataSourceId: string;
+  url: string;
+  content: string;
+}) {
+  const existing = await prisma.reference.findFirst({ where: { url: data.url } });
+
+  if (existing) {
+    return existing;
+  }
+
+  return prisma.reference.create({ data });
+}
 
 async function main() {
   const adminPasswordHash = await bcrypt.hash("Admin1234!", 10);
@@ -29,73 +81,62 @@ async function main() {
     }
   });
 
-  const openData = await prisma.dataSource.create({
-    data: {
-      name: "Open Civic Registry",
-      baseUrl: "https://example.org/civic",
-      sourceType: "API"
-    }
+  const openData = await upsertDataSourceByName({
+    name: "Open Civic Registry",
+    baseUrl: "https://example.org/civic",
+    sourceType: "API"
   });
 
-  const manualArchive = await prisma.dataSource.create({
-    data: {
-      name: "Manual Editorial Archive",
-      baseUrl: "https://example.org/archive",
-      sourceType: "MANUAL"
-    }
+  const manualArchive = await upsertDataSourceByName({
+    name: "Manual Editorial Archive",
+    baseUrl: "https://example.org/archive",
+    sourceType: "MANUAL"
   });
 
-  const ada = await prisma.person.create({
-    data: {
-      fullName: "Ada Lovelace",
-      role: "Mathematician",
-      category: "Science",
-      isPublic: true,
-      biography: "Pioneer of computing concepts."
-    }
+  const ada = await upsertPersonByFullName({
+    fullName: "Ada Lovelace",
+    role: "Mathematician",
+    category: "Science",
+    isPublic: true,
+    biography: "Pioneer of computing concepts."
   });
 
-  await prisma.person.createMany({
-    data: [
-      {
-        fullName: "Grace Hopper",
-        role: "Computer Scientist",
-        category: "Technology",
-        isPublic: true,
-        biography: "Developed influential compiler technology."
-      },
-      {
-        fullName: "Katherine Johnson",
-        role: "Mathematician",
-        category: "Science",
-        isPublic: true,
-        biography: "Known for orbital mechanics calculations."
-      },
-      {
-        fullName: "Hidden Researcher",
-        role: "Analyst",
-        category: "Research",
-        isPublic: false,
-        biography: "Non-public seed record."
-      }
-    ]
+  await upsertPersonByFullName({
+    fullName: "Grace Hopper",
+    role: "Computer Scientist",
+    category: "Technology",
+    isPublic: true,
+    biography: "Developed influential compiler technology."
   });
 
-  await prisma.reference.createMany({
-    data: [
-      {
-        personId: ada.id,
-        dataSourceId: openData.id,
-        url: "https://example.org/civic/ada-lovelace",
-        content: "Public civic registry entry."
-      },
-      {
-        personId: ada.id,
-        dataSourceId: manualArchive.id,
-        url: "https://example.org/archive/ada-lovelace",
-        content: "Editorial archive entry."
-      }
-    ]
+  await upsertPersonByFullName({
+    fullName: "Katherine Johnson",
+    role: "Mathematician",
+    category: "Science",
+    isPublic: true,
+    biography: "Known for orbital mechanics calculations."
+  });
+
+  await upsertPersonByFullName({
+    fullName: "Hidden Researcher",
+    role: "Analyst",
+    category: "Research",
+    isPublic: false,
+    biography: "Non-public seed record."
+  });
+
+  await createReferenceIfMissing({
+    personId: ada.id,
+    dataSourceId: openData.id,
+    url: "https://example.org/civic/ada-lovelace",
+    content: "Public civic registry entry."
+  });
+
+  await createReferenceIfMissing({
+    personId: ada.id,
+    dataSourceId: manualArchive.id,
+    url: "https://example.org/archive/ada-lovelace",
+    content: "Editorial archive entry."
   });
 
   await prisma.tag.createMany({

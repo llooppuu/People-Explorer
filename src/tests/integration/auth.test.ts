@@ -1,3 +1,4 @@
+import jwt from "jsonwebtoken";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { app } from "../../app";
@@ -81,6 +82,8 @@ describe("auth integration", () => {
 
     expect(response.status).toBe(200);
     expect(response.body.token).toEqual(expect.any(String));
+    const decoded = jwt.decode(response.body.token) as jwt.JwtPayload;
+    expect(decoded.exp! - decoded.iat!).toBe(24 * 60 * 60);
   });
 
   it("invalid Zod body returns 400", async () => {

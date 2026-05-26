@@ -45,6 +45,7 @@ vi.mock("../../lib/prisma", () => ({
       })
     },
     person: {
+      findUnique: vi.fn(async ({ where }) => db.persons.find((person) => person.id === where.id) ?? null),
       findMany: vi.fn(async ({ where }) => db.persons.filter((person) => person.isPublic === where.isPublic)),
       findFirst: vi.fn(async ({ where }) => {
         if (where.id) {

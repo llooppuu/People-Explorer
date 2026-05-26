@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma";
+import { AppError } from "../middleware/errorHandler";
 import { AddWatchlistInput } from "../validators/watchlistSchemas";
 
 export async function getWatchlist(userId: string) {
@@ -10,6 +11,12 @@ export async function getWatchlist(userId: string) {
 }
 
 export async function addToWatchlist(userId: string, input: AddWatchlistInput) {
+  const person = await prisma.person.findUnique({ where: { id: input.personId } });
+
+  if (!person) {
+    throw new AppError(404, "Person not found");
+  }
+
   const existing = await prisma.watchlist.findUnique({
     where: { userId_personId: { userId, personId: input.personId } },
     include: { person: true }
@@ -30,5 +37,9 @@ export async function addToWatchlist(userId: string, input: AddWatchlistInput) {
 }
 
 export async function removeFromWatchlist(userId: string, id: string) {
-  await prisma.watchlist.deleteMany({ where: { id, userId } });
+  const result = await prisma.watchlist.deleteMany({ where: { id, userId } });
+
+  if (result.count === 0) {
+    throw new AppError(404, "Watchlist item not found");
+  }
 }

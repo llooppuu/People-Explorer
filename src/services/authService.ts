@@ -42,7 +42,7 @@ export async function login(input: AuthInput) {
     throw new AppError(401, "Invalid email or password");
   }
 
-  const token = jwt.sign({ sub: user.id }, process.env.JWT_SECRET ?? "change_me", { expiresIn: "7d" });
+  const token = jwt.sign({ sub: user.id }, process.env.JWT_SECRET ?? "change_me", { expiresIn: "24h" });
   const { passwordHash: _passwordHash, ...safeUser } = user;
 
   return { token, user: safeUser };

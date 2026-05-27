@@ -28,6 +28,7 @@ Loo lokaalne `.env` fail `.env.example` põhjal:
 DATABASE_URL="postgresql://dpe:dpe_password@localhost:5432/dpe_db?schema=public"
 JWT_SECRET="change_me"
 PORT=3000
+PUBLIC_API_TIMEOUT_MS=5000
 ```
 
 Käivita PostgreSQL:
@@ -57,6 +58,15 @@ npm run dev
 
 API töötab vaikimisi aadressil `http://localhost:3000/api`.
 
+Swagger UI on saadaval aadressil `http://localhost:3000/api/docs`.
+OpenAPI JSON on saadaval aadressil `http://localhost:3000/api/docs.json`.
+
+Avalike API-de päringute timeout on seadistatav muutujaga:
+
+```env
+PUBLIC_API_TIMEOUT_MS=5000
+```
+
 ## Kontrollid
 
 ```bash
@@ -69,6 +79,8 @@ npx prisma validate
 ## API Endpointid
 
 - `GET /api/health`
+- `GET /api/docs`
+- `GET /api/docs.json`
 - `POST /api/auth/register`
 - `POST /api/auth/login`
 - `GET /api/persons`

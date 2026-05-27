@@ -1,4 +1,6 @@
 import { RequestStatus } from "@prisma/client";
+import { fetchReferencesForPerson } from "../integrations/publicSourceService";
+import { ExternalReferenceCandidate } from "../integrations/types";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { CreateRequestInput, RequestQueryInput, UpdateRequestInput } from "../validators/requestSchemas";
@@ -10,8 +12,79 @@ async function findAutoApprovablePerson(targetPersonName: string) {
   });
 }
 
+async function findOrCreateDataSource(candidate: ExternalReferenceCandidate) {
+  const existing = await prisma.dataSource.findFirst({
+    where: {
+      name: candidate.sourceName,
+      baseUrl: candidate.baseUrl
+    }
+  });
+
+  if (existing) {
+    return existing;
+  }
+
+  return prisma.dataSource.create({
+    data: {
+      name: candidate.sourceName,
+      baseUrl: candidate.baseUrl,
+      sourceType: candidate.sourceType
+    }
+  });
+}
+
+async function saveReferenceCandidates(personId: string, candidates: ExternalReferenceCandidate[]) {
+  for (const candidate of candidates) {
+    const existing = await prisma.reference.findFirst({
+      where: {
+        personId,
+        url: candidate.url
+      }
+    });
+
+    if (existing) {
+      continue;
+    }
+
+    const dataSource = await findOrCreateDataSource(candidate);
+
+    await prisma.reference.create({
+      data: {
+        personId,
+        dataSourceId: dataSource.id,
+        url: candidate.url,
+        content: candidate.content
+      }
+    });
+  }
+}
+
+async function importReferencesForRequest(targetPersonName: string) {
+  const candidates = await fetchReferencesForPerson(targetPersonName);
+  let person = await findAutoApprovablePerson(targetPersonName);
+
+  if (!person && candidates.length > 0) {
+    person = await prisma.person.create({
+      data: {
+        fullName: targetPersonName,
+        role: "Unknown",
+        category: "Public",
+        isPublic: false
+      },
+      include: { references: true }
+    });
+  }
+
+  if (person && candidates.length > 0) {
+    await saveReferenceCandidates(person.id, candidates);
+    person = await findAutoApprovablePerson(targetPersonName);
+  }
+
+  return person;
+}
+
 export async function createRequest(requesterId: string, trustScore: number, input: CreateRequestInput) {
-  const person = await findAutoApprovablePerson(input.targetPersonName);
+  const person = await importReferencesForRequest(input.targetPersonName);
   const shouldAutoApprove = trustScore >= 80 && Boolean(person && person.references.length >= 2);
   const status: RequestStatus = shouldAutoApprove ? "APPROVED" : "PENDING";
 

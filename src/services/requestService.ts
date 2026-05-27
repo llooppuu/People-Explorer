@@ -5,6 +5,15 @@ import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { CreateRequestInput, RequestQueryInput, UpdateRequestInput } from "../validators/requestSchemas";
 
+const TRUST_DELTA_APPROVE = 10;
+const TRUST_DELTA_REJECT = -5;
+const TRUST_MIN = 0;
+const TRUST_MAX = 100;
+
+function clampTrust(value: number) {
+  return Math.max(TRUST_MIN, Math.min(TRUST_MAX, value));
+}
+
 async function findAutoApprovablePerson(targetPersonName: string) {
   return prisma.person.findFirst({
     where: { fullName: { equals: targetPersonName, mode: "insensitive" } },
@@ -160,7 +169,32 @@ export async function updateRequest(id: string, reviewerId: string, input: Updat
     await ensurePublicPerson(existing.targetPersonName);
   }
 
+  await adjustRequesterTrust(existing.requesterId, input.status);
+
   return updated;
+}
+
+async function adjustRequesterTrust(requesterId: string, status: "APPROVED" | "REJECTED") {
+  const requester = await prisma.user.findUnique({
+    where: { id: requesterId },
+    select: { trustScore: true }
+  });
+
+  if (!requester) {
+    return;
+  }
+
+  const delta = status === "APPROVED" ? TRUST_DELTA_APPROVE : TRUST_DELTA_REJECT;
+  const next = clampTrust(requester.trustScore + delta);
+
+  if (next === requester.trustScore) {
+    return;
+  }
+
+  await prisma.user.update({
+    where: { id: requesterId },
+    data: { trustScore: next }
+  });
 }
 
 export const approveRequest = (id: string, reviewerId: string) =>

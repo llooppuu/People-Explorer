@@ -26,6 +26,10 @@ vi.mock("../../lib/prisma", () => ({
       create: vi.fn(),
       findUnique: vi.fn(),
       update: vi.fn()
+    },
+    user: {
+      findUnique: vi.fn(),
+      update: vi.fn()
     }
   }
 }));
@@ -41,6 +45,10 @@ const mockedPrisma = prisma as typeof prisma & {
   };
   request: {
     create: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+  };
+  user: {
     findUnique: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
   };
@@ -110,10 +118,11 @@ describe("requestService", () => {
   });
 
   it("approveRequest updates existing person to public", async () => {
-    mockedPrisma.request.findUnique.mockResolvedValue({ id: "request-1", targetPersonName: "Ada Lovelace" } as never);
+    mockedPrisma.request.findUnique.mockResolvedValue({ id: "request-1", requesterId: "user-1", targetPersonName: "Ada Lovelace" } as never);
     mockedPrisma.request.update.mockResolvedValue({ id: "request-1", status: "APPROVED" } as never);
     mockedPrisma.person.findFirst.mockResolvedValue({ id: "person-1" } as never);
     mockedPrisma.person.update.mockResolvedValue({ id: "person-1", isPublic: true } as never);
+    mockedPrisma.user.findUnique.mockResolvedValue({ trustScore: 50 } as never);
 
     const request = await approveRequest("request-1", "admin-1");
 
@@ -126,10 +135,11 @@ describe("requestService", () => {
   });
 
   it("approveRequest creates a new public person when none exists", async () => {
-    mockedPrisma.request.findUnique.mockResolvedValue({ id: "request-1", targetPersonName: "New Person" } as never);
+    mockedPrisma.request.findUnique.mockResolvedValue({ id: "request-1", requesterId: "user-1", targetPersonName: "New Person" } as never);
     mockedPrisma.request.update.mockResolvedValue({ id: "request-1", status: "APPROVED" } as never);
     mockedPrisma.person.findFirst.mockResolvedValue(null as never);
     mockedPrisma.person.create.mockResolvedValue({ id: "person-2", isPublic: true } as never);
+    mockedPrisma.user.findUnique.mockResolvedValue({ trustScore: 50 } as never);
 
     const request = await approveRequest("request-1", "admin-1");
 
@@ -142,12 +152,45 @@ describe("requestService", () => {
     });
   });
 
-  it("rejectRequest changes a request to REJECTED", async () => {
-    mockedPrisma.request.findUnique.mockResolvedValue({ id: "request-1", targetPersonName: "Ada Lovelace" } as never);
+  it("approveRequest raises requester trust score by 10", async () => {
+    mockedPrisma.request.findUnique.mockResolvedValue({ id: "request-1", requesterId: "user-1", targetPersonName: "Ada Lovelace" } as never);
+    mockedPrisma.request.update.mockResolvedValue({ id: "request-1", status: "APPROVED" } as never);
+    mockedPrisma.person.findFirst.mockResolvedValue({ id: "person-1" } as never);
+    mockedPrisma.user.findUnique.mockResolvedValue({ trustScore: 45 } as never);
+
+    await approveRequest("request-1", "admin-1");
+
+    expect(mockedPrisma.user.update).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      data: { trustScore: 55 }
+    });
+  });
+
+  it("approveRequest clamps trust score at 100", async () => {
+    mockedPrisma.request.findUnique.mockResolvedValue({ id: "request-1", requesterId: "user-1", targetPersonName: "Ada Lovelace" } as never);
+    mockedPrisma.request.update.mockResolvedValue({ id: "request-1", status: "APPROVED" } as never);
+    mockedPrisma.person.findFirst.mockResolvedValue({ id: "person-1" } as never);
+    mockedPrisma.user.findUnique.mockResolvedValue({ trustScore: 95 } as never);
+
+    await approveRequest("request-1", "admin-1");
+
+    expect(mockedPrisma.user.update).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      data: { trustScore: 100 }
+    });
+  });
+
+  it("rejectRequest lowers requester trust score by 5 and clamps at 0", async () => {
+    mockedPrisma.request.findUnique.mockResolvedValue({ id: "request-1", requesterId: "user-1", targetPersonName: "Ada Lovelace" } as never);
     mockedPrisma.request.update.mockResolvedValue({ id: "request-1", status: "REJECTED" } as never);
+    mockedPrisma.user.findUnique.mockResolvedValue({ trustScore: 3 } as never);
 
     const request = await rejectRequest("request-1", "admin-1");
 
     expect(request.status).toBe("REJECTED");
+    expect(mockedPrisma.user.update).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      data: { trustScore: 0 }
+    });
   });
 });

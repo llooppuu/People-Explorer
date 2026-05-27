@@ -1,0 +1,12 @@
+node_modules
+dist
+.env
+.env.local
+.git
+.gitignore
+.vscode
+.idea
+.DS_Store
+frontend
+People_Explorer_Claude_Design
+*.log

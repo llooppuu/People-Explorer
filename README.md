@@ -29,50 +29,57 @@ Veebipõhine andmete agregeerimisplatvorm Eesti avalike isikute kohta. Repo sisa
 - react-router-dom
 - axios
 
-## Setup (backend)
+## Setup — Docker (Recommended)
+
+Kogu Masin A (Postgres + backend + frontend) tõuseb ühe käsuga. Hot-reload toimib bind-mountide kaudu, nii et koodi muudatused võetakse arvesse ilma konteinerit taaskäivitamata.
+
+```bash
+docker compose up --build
+```
+
+Esmasel käivitusel teeb backend automaatselt:
+
+1. `prisma migrate deploy` — rakendab migratsioonid
+2. `prisma db seed` — lisab admin- ja test-kasutaja ning näidisandmed
+3. `npm run dev` — käivitab Express'i `tsx watch`-iga
+
+Pärast käivitust:
+
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:3000/api`
+- Swagger UI: `http://localhost:3000/api/docs`
+- Postgres: `localhost:5432` (`dpe` / `dpe_password`)
+
+Peatamine: `docker compose down`. Andmebaasi resettimine: `docker compose down -v`.
+
+### Keskkonnamuutujad
+
+Compose-i juurkaustas saab valikulisi muutujaid edastada `.env`-faili kaudu (juurkaustas, mitte commitida):
+
+```env
+JWT_SECRET=production_secret_here
+OLLAMA_URL=http://192.168.1.42:11434   # Masin B LAN-IP
+OLLAMA_MODEL=gpt-oss:20b
+OLLAMA_TIMEOUT_MS=90000
+```
+
+Kui `OLLAMA_URL` on tühi, on AI-integratsioon välja lülitatud.
+
+## Setup — ilma Dockerita (backend)
+
+Kui eelistad Node'i lokaalselt:
 
 ```bash
 npm install
-```
-
-Loo lokaalne `.env` fail `.env.example` põhjal:
-
-```env
-DATABASE_URL="postgresql://dpe:dpe_password@localhost:5432/dpe_db?schema=public"
-JWT_SECRET="change_me"
-PORT=3000
-PUBLIC_API_TIMEOUT_MS=5000
-```
-
-Käivita PostgreSQL:
-
-```bash
-docker compose up -d
-```
-
-Rakenda Prisma migratsioonid ja genereeri klient:
-
-```bash
+cp .env.example .env
+docker compose up -d postgres     # ainult Postgres
 npm run prisma:migrate -- --name init
 npm run prisma:generate
-```
-
-Lisa seed data:
-
-```bash
 npm run prisma:seed
-```
-
-Käivita dev server:
-
-```bash
 npm run dev
 ```
 
-API töötab vaikimisi aadressil `http://localhost:3000/api`.
-
-Swagger UI on saadaval aadressil `http://localhost:3000/api/docs`.
-OpenAPI JSON on saadaval aadressil `http://localhost:3000/api/docs.json`.
+API töötab vaikimisi aadressil `http://localhost:3000/api`. Swagger UI: `http://localhost:3000/api/docs`. OpenAPI JSON: `http://localhost:3000/api/docs.json`.
 
 Avalike API-de päringute timeout on seadistatav muutujaga:
 
@@ -122,7 +129,7 @@ Seed loob järgmised kasutajad:
 - Admin: `admin@dpe.ee` / `Admin1234!`
 - Testkasutaja: `testkasutaja@dpe.ee` / `Test1234!`
 
-## Setup (frontend)
+## Setup — ilma Dockerita (frontend)
 
 ```bash
 cd frontend
@@ -130,7 +137,7 @@ npm install
 npm run dev
 ```
 
-Dev server töötab aadressil `http://localhost:5173` ja proksib `/api/*` päringud backendile (`http://localhost:3000`). Backend peab samaaegselt jooksma.
+Dev server töötab aadressil `http://localhost:5173` ja proksib `/api/*` päringud backendile. Backendi aadressi saab muuta keskkonnamuutujaga `BACKEND_URL` (vaikimisi `http://localhost:3000`). Docker-režiimis on see seatud `http://backend:3000` peale.
 
 Tootmisbuildi loomine:
 

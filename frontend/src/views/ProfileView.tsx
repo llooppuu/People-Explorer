@@ -97,6 +97,9 @@ export function ProfileView() {
       : person.category === "Kultuur"
       ? "culture"
       : "";
+  const localized = person.localizedProfile?.[lang];
+  const displayRole = localized?.role || person.role;
+  const displayBiography = localized?.biography || person.biography;
 
   return (
     <div className="page">
@@ -104,7 +107,7 @@ export function ProfileView() {
         <div className="profile-avatar">{initials(person.fullName)}</div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <h1>{person.fullName}</h1>
-          <div className="sub">{person.role}</div>
+          <div className="sub">{displayRole}</div>
           <div className="meta">
             <span>
               <span className={"cat-tag " + catClass} style={{ marginRight: 6 }}>
@@ -138,10 +141,33 @@ export function ProfileView() {
           <h3 style={{ fontFamily: "var(--mono)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--ink-3)", margin: "0 0 12px 0" }}>
             {t.profile_bio}
           </h3>
-          {person.biography ? (
-            <p className="bio">{person.biography}</p>
+          {displayBiography ? (
+            <p className="bio">{displayBiography}</p>
           ) : (
             <p className="muted">{lang === "et" ? "Biograafia puudub." : "No biography available."}</p>
+          )}
+          {person.profileSections && person.profileSections.length > 0 && (
+            <div className="profile-sections" aria-label={lang === "et" ? "Profiili jaotised" : "Profile sections"}>
+              {person.profileSections.map((section) => (
+                <details key={`${section.sourceName}-${section.id}`} className="profile-section">
+                  <summary>
+                    <span>{section.title}</span>
+                    <span className="section-source">{section.sourceName}</span>
+                  </summary>
+                  {section.items && section.items.length > 0 && (
+                    <dl>
+                      {section.items.map((item) => (
+                        <div key={`${item.label}-${item.value}`}>
+                          <dt>{item.label}</dt>
+                          <dd>{item.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                  {section.text && <p>{section.text}</p>}
+                </details>
+              ))}
+            </div>
           )}
 
           <div className="aside-card" style={{ marginTop: 24 }}>

@@ -22,12 +22,28 @@ type RequestRow = {
   reviewerId?: string;
 };
 
+type PersonRow = {
+  id: string;
+  fullName: string;
+  role: string;
+  category: string;
+  isPublic: boolean;
+  biography?: string | null;
+  createdAt?: Date;
+  references: Array<Record<string, unknown>>;
+};
+
 type ReferenceCandidate = {
   sourceName: string;
   baseUrl: string;
   sourceType: "API" | "RSS" | "MANUAL";
   url: string;
   content?: string;
+  personProfile?: {
+    role?: string;
+    biography?: string;
+    category?: string;
+  };
 };
 
 const db = vi.hoisted(() => ({
@@ -35,7 +51,7 @@ const db = vi.hoisted(() => ({
   persons: [
     { id: "person-1", fullName: "Ada Lovelace", role: "Mathematician", category: "Science", isPublic: true, references: [{}, {}] },
     { id: "person-2", fullName: "Private Person", role: "Analyst", category: "Research", isPublic: false, references: [] }
-  ],
+  ] as PersonRow[],
   dataSources: [] as Array<{ id: string; name: string; baseUrl: string; sourceType: "API" | "RSS" | "MANUAL" }>,
   references: [] as Array<{ id: string; personId: string; dataSourceId: string; url: string; content?: string; fetchedAt: Date }>,
   requests: [] as RequestRow[],
@@ -58,6 +74,13 @@ vi.mock("../../lib/prisma", () => ({
         }
 
         return db.users.find((user) => user.id === where.id) ?? null;
+      }),
+      update: vi.fn(async ({ where, data }) => {
+        const user = db.users.find((item) => item.id === where.id);
+        if (user) {
+          Object.assign(user, data);
+        }
+        return user;
       })
     },
     person: {
@@ -258,7 +281,12 @@ describe("requests integration", () => {
         baseUrl: "https://www.wikidata.org",
         sourceType: "API",
         url: "https://www.wikidata.org/wiki/Q1",
-        content: "Trusted Person"
+        content: "Trusted Person - Eesti president",
+        personProfile: {
+          role: "Eesti president",
+          biography: "Trusted Person - Eesti president",
+          category: "Poliitika"
+        }
       },
       {
         sourceName: "Riigikogu API",
@@ -275,6 +303,9 @@ describe("requests integration", () => {
     expect(response.status).toBe(201);
     expect(response.body.status).toBe("APPROVED");
     expect(person?.isPublic).toBe(true);
+    expect(person?.role).toBe("Eesti president");
+    expect(person?.biography).toBe("Trusted Person - Eesti president");
+    expect(person?.category).toBe("Poliitika");
     expect(person?.references).toHaveLength(2);
   });
 

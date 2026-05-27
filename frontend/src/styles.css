@@ -658,6 +658,81 @@ input, select, textarea { font-family: inherit; color: inherit; }
   line-height: 1.55;
 }
 
+.profile-sections {
+  display: grid;
+  gap: 8px;
+  max-width: 78ch;
+  margin-top: 18px;
+}
+.profile-section {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.profile-section summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 12px;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  list-style: none;
+}
+.profile-section summary::-webkit-details-marker {
+  display: none;
+}
+.profile-section summary::before {
+  content: "+";
+  color: var(--ink-3);
+  font-size: 14px;
+  width: 14px;
+}
+.profile-section[open] summary {
+  border-bottom: 1px solid var(--line);
+}
+.profile-section[open] summary::before {
+  content: "-";
+}
+.section-source {
+  margin-left: auto;
+  color: var(--ink-4);
+  font-size: 10px;
+}
+.profile-section dl {
+  margin: 0;
+  padding: 10px 12px 12px 38px;
+  display: grid;
+  gap: 8px;
+}
+.profile-section dl > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+  gap: 12px;
+}
+.profile-section dt {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.profile-section dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.profile-section p {
+  margin: 0;
+  padding: 12px 14px 14px 38px;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 /* Timeline */
 .timeline {
   position: relative;

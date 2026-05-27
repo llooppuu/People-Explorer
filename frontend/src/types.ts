@@ -42,6 +42,26 @@ export interface Person {
   category: string;
   isPublic: boolean;
   biography?: string | null;
+  localizedProfile?: {
+    et?: {
+      role?: string | null;
+      biography?: string | null;
+    };
+    en?: {
+      role?: string | null;
+      biography?: string | null;
+    };
+  };
+  profileSections?: Array<{
+    id: string;
+    title: string;
+    sourceName: string;
+    text?: string | null;
+    items?: Array<{
+      label: string;
+      value: string;
+    }>;
+  }>;
   createdAt: string;
   references?: Reference[];
   tags?: PersonTag[];

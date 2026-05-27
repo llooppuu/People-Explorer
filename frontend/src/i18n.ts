@@ -143,7 +143,7 @@ export const T = {
   },
 } as const;
 
-export type Strings = typeof T["et"];
+export type Strings = Record<keyof typeof T["et"], string>;
 
 export function useT(lang: Lang): Strings {
   return T[lang];

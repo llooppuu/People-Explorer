@@ -68,16 +68,36 @@ async function saveReferenceCandidates(personId: string, candidates: ExternalRef
   }
 }
 
+function firstProfile(candidates: ExternalReferenceCandidate[]) {
+  return candidates.find((candidate) => candidate.personProfile)?.personProfile;
+}
+
+function profileUpdateData(person: { role?: string | null; biography?: string | null; category?: string | null }, candidates: ExternalReferenceCandidate[]) {
+  const profile = firstProfile(candidates);
+
+  if (!profile) {
+    return {};
+  }
+
+  return {
+    ...(profile.role && (!person.role || person.role === "Unknown") ? { role: profile.role } : {}),
+    ...(profile.biography && !person.biography ? { biography: profile.biography } : {}),
+    ...(profile.category && (!person.category || person.category === "Public") ? { category: profile.category } : {})
+  };
+}
+
 async function importReferencesForRequest(targetPersonName: string) {
   const candidates = await fetchReferencesForPerson(targetPersonName);
   let person = await findAutoApprovablePerson(targetPersonName);
+  const profile = firstProfile(candidates);
 
   if (!person && candidates.length > 0) {
     person = await prisma.person.create({
       data: {
         fullName: targetPersonName,
-        role: "Unknown",
-        category: "Public",
+        role: profile?.role ?? "Unknown",
+        category: profile?.category ?? "Public",
+        biography: profile?.biography,
         isPublic: false
       },
       include: { references: true }
@@ -86,6 +106,13 @@ async function importReferencesForRequest(targetPersonName: string) {
 
   if (person && candidates.length > 0) {
     await saveReferenceCandidates(person.id, candidates);
+    const updateData = profileUpdateData(person, candidates);
+    if (Object.keys(updateData).length > 0) {
+      await prisma.person.update({
+        where: { id: person.id },
+        data: updateData
+      });
+    }
     person = await findAutoApprovablePerson(targetPersonName);
   }
 

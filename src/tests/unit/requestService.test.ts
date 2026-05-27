@@ -109,14 +109,37 @@ describe("requestService", () => {
     expect(mockedPrisma.person.update).not.toHaveBeenCalled();
   });
 
-  it("approveRequest changes a request to APPROVED", async () => {
+  it("approveRequest updates existing person to public", async () => {
     mockedPrisma.request.findUnique.mockResolvedValue({ id: "request-1", targetPersonName: "Ada Lovelace" } as never);
     mockedPrisma.request.update.mockResolvedValue({ id: "request-1", status: "APPROVED" } as never);
+    mockedPrisma.person.findFirst.mockResolvedValue({ id: "person-1" } as never);
+    mockedPrisma.person.update.mockResolvedValue({ id: "person-1", isPublic: true } as never);
 
     const request = await approveRequest("request-1", "admin-1");
 
     expect(request.status).toBe("APPROVED");
-    expect(mockedPrisma.person.updateMany).toHaveBeenCalled();
+    expect(mockedPrisma.person.update).toHaveBeenCalledWith({
+      where: { id: "person-1" },
+      data: { isPublic: true }
+    });
+    expect(mockedPrisma.person.create).not.toHaveBeenCalled();
+  });
+
+  it("approveRequest creates a new public person when none exists", async () => {
+    mockedPrisma.request.findUnique.mockResolvedValue({ id: "request-1", targetPersonName: "New Person" } as never);
+    mockedPrisma.request.update.mockResolvedValue({ id: "request-1", status: "APPROVED" } as never);
+    mockedPrisma.person.findFirst.mockResolvedValue(null as never);
+    mockedPrisma.person.create.mockResolvedValue({ id: "person-2", isPublic: true } as never);
+
+    const request = await approveRequest("request-1", "admin-1");
+
+    expect(request.status).toBe("APPROVED");
+    expect(mockedPrisma.person.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        fullName: "New Person",
+        isPublic: true
+      })
+    });
   });
 
   it("rejectRequest changes a request to REJECTED", async () => {

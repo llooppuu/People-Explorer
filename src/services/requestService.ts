@@ -118,6 +118,28 @@ export async function getRequests(query: RequestQueryInput) {
   });
 }
 
+async function ensurePublicPerson(targetPersonName: string) {
+  const existing = await prisma.person.findFirst({
+    where: { fullName: { equals: targetPersonName, mode: "insensitive" } }
+  });
+
+  if (existing) {
+    return prisma.person.update({
+      where: { id: existing.id },
+      data: { isPublic: true }
+    });
+  }
+
+  return prisma.person.create({
+    data: {
+      fullName: targetPersonName,
+      role: "Unknown",
+      category: "Public",
+      isPublic: true
+    }
+  });
+}
+
 export async function updateRequest(id: string, reviewerId: string, input: UpdateRequestInput) {
   const existing = await prisma.request.findUnique({ where: { id } });
 
@@ -135,10 +157,7 @@ export async function updateRequest(id: string, reviewerId: string, input: Updat
   });
 
   if (input.status === "APPROVED") {
-    await prisma.person.updateMany({
-      where: { fullName: { equals: existing.targetPersonName, mode: "insensitive" } },
-      data: { isPublic: true }
-    });
+    await ensurePublicPerson(existing.targetPersonName);
   }
 
   return updated;

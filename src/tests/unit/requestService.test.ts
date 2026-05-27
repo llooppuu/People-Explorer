@@ -2,12 +2,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { approveRequest, createRequest, rejectRequest } from "../../services/requestService";
 import { prisma } from "../../lib/prisma";
 
+const externalSources = vi.hoisted(() => ({
+  fetchReferencesForPerson: vi.fn()
+}));
+
 vi.mock("../../lib/prisma", () => ({
   prisma: {
     person: {
       findFirst: vi.fn(),
+      create: vi.fn(),
       update: vi.fn(),
       updateMany: vi.fn()
+    },
+    dataSource: {
+      findFirst: vi.fn(),
+      create: vi.fn()
+    },
+    reference: {
+      findFirst: vi.fn(),
+      create: vi.fn()
     },
     request: {
       create: vi.fn(),
@@ -17,11 +30,26 @@ vi.mock("../../lib/prisma", () => ({
   }
 }));
 
-const mockedPrisma = prisma as any;
+vi.mock("../../integrations/publicSourceService", () => externalSources);
+
+const mockedPrisma = prisma as typeof prisma & {
+  person: {
+    findFirst: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+    updateMany: ReturnType<typeof vi.fn>;
+  };
+  request: {
+    create: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+  };
+};
 
 describe("requestService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    externalSources.fetchReferencesForPerson.mockResolvedValue([]);
   });
 
   it("createRequest creates PENDING when trustScore is below 80", async () => {

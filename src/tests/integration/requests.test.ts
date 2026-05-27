@@ -22,16 +22,32 @@ type RequestRow = {
   reviewerId?: string;
 };
 
+type ReferenceCandidate = {
+  sourceName: string;
+  baseUrl: string;
+  sourceType: "API" | "RSS" | "MANUAL";
+  url: string;
+  content?: string;
+};
+
 const db = vi.hoisted(() => ({
   users: [] as UserRow[],
   persons: [
     { id: "person-1", fullName: "Ada Lovelace", role: "Mathematician", category: "Science", isPublic: true, references: [{}, {}] },
     { id: "person-2", fullName: "Private Person", role: "Analyst", category: "Research", isPublic: false, references: [] }
   ],
+  dataSources: [] as Array<{ id: string; name: string; baseUrl: string; sourceType: "API" | "RSS" | "MANUAL" }>,
+  references: [] as Array<{ id: string; personId: string; dataSourceId: string; url: string; content?: string; fetchedAt: Date }>,
   requests: [] as RequestRow[],
   watchlist: [] as Array<{ id: string; userId: string; personId: string; note?: string; createdAt: Date }>,
   nextId: 1
 }));
+
+const externalSources = vi.hoisted(() => ({
+  fetchReferencesForPerson: vi.fn<() => Promise<ReferenceCandidate[]>>()
+}));
+
+vi.mock("../../integrations/publicSourceService", () => externalSources);
 
 vi.mock("../../lib/prisma", () => ({
   prisma: {
@@ -55,6 +71,17 @@ vi.mock("../../lib/prisma", () => ({
         const expected = where.fullName.equals.toLowerCase();
         return db.persons.find((person) => person.fullName.toLowerCase() === expected) ?? null;
       }),
+      create: vi.fn(async ({ data }) => {
+        const person = {
+          id: `person-${db.persons.length + 1}`,
+          createdAt: new Date(),
+          references: [],
+          biography: null,
+          ...data
+        };
+        db.persons.push(person);
+        return person;
+      }),
       update: vi.fn(async ({ where, data }) => {
         const person = db.persons.find((item) => item.id === where.id);
         if (person) {
@@ -72,6 +99,26 @@ vi.mock("../../lib/prisma", () => ({
           }
         }
         return { count };
+      })
+    },
+    dataSource: {
+      findFirst: vi.fn(async ({ where }) =>
+        db.dataSources.find((source) => source.name === where.name && source.baseUrl === where.baseUrl) ?? null
+      ),
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `source-${db.nextId++}`, ...data };
+        db.dataSources.push(row);
+        return row;
+      })
+    },
+    reference: {
+      findFirst: vi.fn(async ({ where }) => db.references.find((item) => item.personId === where.personId && item.url === where.url) ?? null),
+      create: vi.fn(async ({ data }) => {
+        const row = { id: `reference-${db.nextId++}`, fetchedAt: new Date(), ...data };
+        db.references.push(row);
+        const person = db.persons.find((item) => item.id === row.personId);
+        person?.references.push(row);
+        return row;
       })
     },
     request: {
@@ -128,9 +175,15 @@ describe("requests integration", () => {
   beforeEach(async () => {
     db.requests.length = 0;
     db.watchlist.length = 0;
+    db.dataSources.length = 0;
+    db.references.length = 0;
     db.nextId = 1;
     db.persons[0].isPublic = true;
     db.persons[1].isPublic = false;
+    db.persons.splice(2);
+    db.persons[0].references = [{}, {}];
+    db.persons[1].references = [];
+    externalSources.fetchReferencesForPerson.mockResolvedValue([]);
     db.users = [
       {
         id: "user-1",
@@ -147,6 +200,14 @@ describe("requests integration", () => {
         role: "ADMIN",
         trustScore: 100,
         createdAt: new Date()
+      },
+      {
+        id: "trusted-1",
+        email: "trusted@dpe.ee",
+        passwordHash: await bcrypt.hash("Trusted123!", 4),
+        role: "USER",
+        trustScore: 90,
+        createdAt: new Date()
       }
     ];
   });
@@ -162,6 +223,59 @@ describe("requests integration", () => {
 
     expect(response.status).toBe(201);
     expect(response.body.status).toBe("PENDING");
+  });
+
+  it("POST /api/requests creates a request when external sources return no references", async () => {
+    externalSources.fetchReferencesForPerson.mockResolvedValue([]);
+    const token = await tokenFor("user@dpe.ee", "Password123!");
+    const response = await request(app).post("/api/requests").set("Authorization", `Bearer ${token}`).send({ targetPersonName: "New Person" });
+
+    expect(response.status).toBe(201);
+    expect(response.body.status).toBe("PENDING");
+    expect(db.persons.some((person) => person.fullName === "New Person")).toBe(false);
+  });
+
+  it("POST /api/requests uses the public source service", async () => {
+    const token = await tokenFor("user@dpe.ee", "Password123!");
+    await request(app).post("/api/requests").set("Authorization", `Bearer ${token}`).send({ targetPersonName: "Ada Lovelace" });
+
+    expect(externalSources.fetchReferencesForPerson).toHaveBeenCalledWith("Ada Lovelace");
+  });
+
+  it("POST /api/requests does not return 500 when external source clients fail internally", async () => {
+    externalSources.fetchReferencesForPerson.mockResolvedValue([]);
+    const token = await tokenFor("user@dpe.ee", "Password123!");
+    const response = await request(app).post("/api/requests").set("Authorization", `Bearer ${token}`).send({ targetPersonName: "Broken Source" });
+
+    expect(response.status).toBe(201);
+    expect(response.body.status).toBe("PENDING");
+  });
+
+  it("POST /api/requests auto-approves trusted users when external sources add at least 2 references", async () => {
+    externalSources.fetchReferencesForPerson.mockResolvedValue([
+      {
+        sourceName: "Wikidata",
+        baseUrl: "https://www.wikidata.org",
+        sourceType: "API",
+        url: "https://www.wikidata.org/wiki/Q1",
+        content: "Trusted Person"
+      },
+      {
+        sourceName: "Riigikogu API",
+        baseUrl: "https://api.riigikogu.ee",
+        sourceType: "API",
+        url: "https://api.riigikogu.ee/api/search?query=Trusted%20Person#1",
+        content: "Trusted Person"
+      }
+    ]);
+    const token = await tokenFor("trusted@dpe.ee", "Trusted123!");
+    const response = await request(app).post("/api/requests").set("Authorization", `Bearer ${token}`).send({ targetPersonName: "Trusted Person" });
+    const person = db.persons.find((item) => item.fullName === "Trusted Person");
+
+    expect(response.status).toBe(201);
+    expect(response.body.status).toBe("APPROVED");
+    expect(person?.isPublic).toBe(true);
+    expect(person?.references).toHaveLength(2);
   });
 
   it("USER cannot GET /api/requests", async () => {
@@ -192,6 +306,20 @@ describe("requests integration", () => {
     expect(response.status).toBe(200);
     expect(response.body.status).toBe("APPROVED");
     expect(db.persons[1].isPublic).toBe(true);
+  });
+
+  it("PUT /api/requests/:id returns 403 for USER role", async () => {
+    db.requests.push({
+      id: "request-1",
+      requesterId: "user-1",
+      targetPersonName: "Private Person",
+      status: "PENDING",
+      createdAt: new Date()
+    });
+    const token = await tokenFor("user@dpe.ee", "Password123!");
+    const response = await request(app).put("/api/requests/request-1").set("Authorization", `Bearer ${token}`).send({ status: "APPROVED" });
+
+    expect(response.status).toBe(403);
   });
 
   it("GET /api/persons returns public persons", async () => {

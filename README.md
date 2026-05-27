@@ -1,8 +1,13 @@
 # Dynamic People Explorer
 
-Backend API for Dynamic People Explorer. Christopheri osa katab Prisma andmemudeli, PostgreSQL migratsioonid, service-kihi, trust score auto-approve ärireegli, Prisma ORM päringud ning Vitest/Supertest testid.
+Veebipõhine andmete agregeerimisplatvorm Eesti avalike isikute kohta. Repo sisaldab kahte rakendust:
+
+- **Backend** (`/`, `src/`, `prisma/`) — Express.js REST API + PostgreSQL + Prisma ORM, Swagger UI `/api/docs`. Christopheri osa katab Prisma andmemudeli, service-kihi ja ärireeglid; Lauri osa katab API integratsioonid ning Swagger dokumentatsiooni.
+- **Frontend** (`frontend/`) — React + Vite + TypeScript SPA, mis kasutab backendi API-d. Kasutajaliides on eestikeelne (ET) ja ingliskeelne (EN) ning toetab kahte teemat (Register / Dossier).
 
 ## Tehnoloogiad
+
+### Backend
 
 - Node.js
 - TypeScript
@@ -16,7 +21,15 @@ Backend API for Dynamic People Explorer. Christopheri osa katab Prisma andmemude
 - Supertest
 - Docker Compose
 
-## Setup
+### Frontend
+
+- React 18
+- Vite
+- TypeScript
+- react-router-dom
+- axios
+
+## Setup (backend)
 
 ```bash
 npm install
@@ -108,3 +121,33 @@ Seed loob järgmised kasutajad:
 
 - Admin: `admin@dpe.ee` / `Admin1234!`
 - Testkasutaja: `testkasutaja@dpe.ee` / `Test1234!`
+
+## Setup (frontend)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Dev server töötab aadressil `http://localhost:5173` ja proksib `/api/*` päringud backendile (`http://localhost:3000`). Backend peab samaaegselt jooksma.
+
+Tootmisbuildi loomine:
+
+```bash
+cd frontend
+npm run build
+```
+
+Buildi väljund läheb kausta `frontend/dist/` ja on serveeritav Nginx-i kaudu.
+
+## Frontend vaated
+
+- `/` — avaleht, otsing ja soovitatud isikud
+- `/persons` — kõigi avalikustatud isikute nimekiri (grid/list, filtrid)
+- `/persons/:id` — isiku detailvaade, allikaviited, sildid
+- `/login`, `/register` — autentimine
+- `/requests/new` — uue isiku lisamise päring (autenditud kasutajatele)
+- `/watchlist` — kasutaja jälgimisnimekiri
+- `/admin` — admini päringute ülevaade ja haldus
+- `/sources` — kasutatud andmeallikate loetelu

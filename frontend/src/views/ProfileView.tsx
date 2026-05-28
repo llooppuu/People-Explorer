@@ -29,8 +29,21 @@ export function ProfileView() {
   const [webBusy, setWebBusy] = useState(false);
   const [webFindings, setWebFindings] = useState<WebSearchFindings | null>(null);
   const [webMessage, setWebMessage] = useState<string | null>(null);
+  const [webQuery, setWebQuery] = useState("");
+  const [webSites, setWebSites] = useState<string[]>([]);
+  const [webCustomSite, setWebCustomSite] = useState("");
   const { user } = useAuth();
   const isAdmin = user?.role === "ADMIN";
+
+  const PRESET_SITES = [
+    "et.wikipedia.org",
+    "err.ee",
+    "postimees.ee",
+    "delfi.ee",
+    "riigikogu.ee",
+    "ariregister.rik.ee",
+    "linkedin.com"
+  ];
 
   useEffect(() => {
     if (!id) return;
@@ -42,6 +55,7 @@ export function ProfileView() {
         if (active) {
           setPerson(p);
           setAiOverview(p.aiOverview ?? null);
+          setWebQuery(p.fullName);
         }
       })
       .catch(() => {
@@ -108,13 +122,34 @@ export function ProfileView() {
     setWebMessage(null);
     setWebFindings(null);
     try {
-      const findings = await previewWebSearch(person.id);
+      const findings = await previewWebSearch(person.id, {
+        query: webQuery.trim() || person.fullName,
+        sites: webSites.length > 0 ? webSites : undefined
+      });
       setWebFindings(findings);
     } catch {
       setWebMessage(t.error_generic);
     } finally {
       setWebBusy(false);
     }
+  }
+
+  function toggleSite(site: string) {
+    setWebSites((list) => (list.includes(site) ? list.filter((s) => s !== site) : [...list, site]));
+  }
+
+  function addCustomSite() {
+    const cleaned = webCustomSite
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//, "")
+      .replace(/\/.*$/, "");
+    if (!cleaned || webSites.includes(cleaned)) {
+      setWebCustomSite("");
+      return;
+    }
+    setWebSites((list) => [...list, cleaned]);
+    setWebCustomSite("");
   }
 
   async function handleAcceptWebSearch() {
@@ -285,23 +320,82 @@ export function ProfileView() {
                 {t.web_search_h}
               </h3>
               {!webFindings && (
-                <>
-                  <p className="muted" style={{ fontSize: 13, marginBottom: 10 }}>
-                    {lang === "et"
-                      ? `Otsib veebist nime "${person.fullName}" järgi ja teeb AI-kokkuvõtte. Tulemusi näed enne salvestamist.`
-                      : `Searches the web for "${person.fullName}" and runs an AI summary. Review before saving.`}
-                  </p>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleWebSearch();
+                  }}
+                  style={{ display: "flex", flexDirection: "column", gap: 10 }}
+                >
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <span className="mono" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--ink-3)" }}>
+                      {t.web_search_query_label}
+                    </span>
+                    <input
+                      className="input"
+                      value={webQuery}
+                      onChange={(e) => setWebQuery(e.target.value)}
+                      placeholder={t.web_search_query_ph}
+                      autoFocus={false}
+                    />
+                  </label>
+
+                  <div>
+                    <div className="mono" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--ink-3)", marginBottom: 6 }}>
+                      {t.web_search_sites_label}
+                    </div>
+                    <div className="row" style={{ flexWrap: "wrap", gap: 6 }}>
+                      {[...PRESET_SITES, ...webSites.filter((s) => !PRESET_SITES.includes(s))].map((site) => {
+                        const active = webSites.includes(site);
+                        return (
+                          <button
+                            type="button"
+                            key={site}
+                            className={"chip" + (active ? " active" : "")}
+                            onClick={() => toggleSite(site)}
+                            style={{ cursor: "pointer", border: 0, fontSize: 11 }}
+                          >
+                            {site}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="row" style={{ gap: 6, marginTop: 8 }}>
+                      <input
+                        className="input"
+                        value={webCustomSite}
+                        onChange={(e) => setWebCustomSite(e.target.value)}
+                        placeholder={t.web_search_site_add}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            addCustomSite();
+                          }
+                        }}
+                        style={{ flex: 1, fontSize: 12 }}
+                      />
+                      <button type="button" className="btn sm" onClick={addCustomSite} disabled={!webCustomSite.trim()}>
+                        {t.web_search_site_add_btn}
+                      </button>
+                    </div>
+                  </div>
+
                   <button
+                    type="submit"
                     className="btn sm primary"
-                    onClick={handleWebSearch}
-                    disabled={webBusy}
+                    disabled={webBusy || !webQuery.trim()}
                   >
                     <Icon name="search" size={12} /> {webBusy ? t.web_search_busy : t.web_search_run}
                   </button>
-                </>
+                </form>
               )}
               {webFindings && webFindings.results.length === 0 && (
-                <p className="muted" style={{ fontSize: 13 }}>{t.web_search_empty}</p>
+                <>
+                  <p className="muted" style={{ fontSize: 13 }}>{t.web_search_empty}</p>
+                  <button className="btn sm" style={{ marginTop: 8 }} onClick={handleCancelWebSearch}>
+                    {t.web_search_new_search}
+                  </button>
+                </>
               )}
               {webFindings && webFindings.results.length > 0 && (
                 <div>

@@ -24,3 +24,10 @@ export const acceptWebSearchSchema = z.object({
 });
 
 export type AcceptWebSearchInput = z.infer<typeof acceptWebSearchSchema>;
+
+export const previewWebSearchSchema = z.object({
+  query: z.string().trim().min(1).max(200).optional(),
+  sites: z.array(z.string().trim().min(1).max(120)).max(20).optional()
+});
+
+export type PreviewWebSearchInput = z.infer<typeof previewWebSearchSchema>;

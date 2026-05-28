@@ -45,8 +45,14 @@ export interface WebSearchFindings {
   summary: string;
 }
 
-export async function previewWebSearch(personId: string): Promise<WebSearchFindings> {
-  const { data } = await api.post<WebSearchFindings>(`/persons/${personId}/web-search`);
+export async function previewWebSearch(
+  personId: string,
+  options?: { query?: string; sites?: string[] }
+): Promise<WebSearchFindings> {
+  const { data } = await api.post<WebSearchFindings>(
+    `/persons/${personId}/web-search`,
+    options ?? {}
+  );
   return data;
 }
 

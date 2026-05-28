@@ -72,12 +72,26 @@ async function runDdgQuery(query: string, timeoutMs: number): Promise<WebSearchR
   }
 }
 
-export async function searchPersonOnWeb(query: string): Promise<WebSearchResult[]> {
+function buildSiteFilter(sites: string[] | undefined): string {
+  if (!sites || sites.length === 0) return "";
+  const cleaned = sites
+    .map((s) => s.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, ""))
+    .filter(Boolean);
+  if (cleaned.length === 0) return "";
+  if (cleaned.length === 1) return `site:${cleaned[0]}`;
+  return `(${cleaned.map((s) => `site:${s}`).join(" OR ")})`;
+}
+
+export async function searchPersonOnWeb(query: string, sites?: string[]): Promise<WebSearchResult[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
 
   const timeoutMs = Number(process.env.PUBLIC_API_TIMEOUT_MS ?? 5000);
-  const quoted = `"${trimmed.replace(/"/g, "")}"`;
+  const siteFilter = buildSiteFilter(sites);
+  const baseQuery = siteFilter ? `${trimmed} ${siteFilter}` : trimmed;
+  const quoted = siteFilter
+    ? `"${trimmed.replace(/"/g, "")}" ${siteFilter}`
+    : `"${trimmed.replace(/"/g, "")}"`;
   const merged = new Map<string, WebSearchResult>();
 
   const quotedResults = await runDdgQuery(quoted, timeoutMs).catch(() => []);
@@ -86,7 +100,7 @@ export async function searchPersonOnWeb(query: string): Promise<WebSearchResult[
   }
 
   if (merged.size < MAX_RESULTS) {
-    const broad = await runDdgQuery(trimmed, timeoutMs).catch(() => []);
+    const broad = await runDdgQuery(baseQuery, timeoutMs).catch(() => []);
     for (const r of broad) {
       if (merged.size >= MAX_RESULTS) break;
       if (!merged.has(r.url)) merged.set(r.url, r);
@@ -149,8 +163,12 @@ async function summarizeWithOllama(personName: string, results: WebSearchResult[
   }
 }
 
-export async function gatherWebFindings(personName: string): Promise<WebSearchFindings> {
-  const results = await searchPersonOnWeb(personName);
+export async function gatherWebFindings(
+  personName: string,
+  options?: { query?: string; sites?: string[] }
+): Promise<WebSearchFindings> {
+  const query = options?.query?.trim() || personName;
+  const results = await searchPersonOnWeb(query, options?.sites);
   const summary = await summarizeWithOllama(personName, results);
-  return { query: personName, results, summary };
+  return { query, results, summary };
 }

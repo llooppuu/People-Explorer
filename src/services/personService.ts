@@ -133,12 +133,15 @@ export async function generatePersonAiOverview(id: string): Promise<string> {
   return overview;
 }
 
-export async function previewWebSearch(id: string): Promise<WebSearchFindings> {
+export async function previewWebSearch(
+  id: string,
+  options?: { query?: string; sites?: string[] }
+): Promise<WebSearchFindings> {
   const person = await prisma.person.findUnique({ where: { id } });
   if (!person) {
     throw new AppError(404, "Person not found");
   }
-  return gatherWebFindings(person.fullName);
+  return gatherWebFindings(person.fullName, options);
 }
 
 export async function acceptWebSearchFindings(

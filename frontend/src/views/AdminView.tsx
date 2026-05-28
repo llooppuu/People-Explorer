@@ -4,6 +4,7 @@ import { useUi } from "../context/UiContext";
 import { useT } from "../i18n";
 import { getEuipoSettings, updateEuipoSettings, type EuipoSettingsStatus } from "../api/integrations";
 import { listRequests, updateRequest } from "../api/requests";
+import { generateAiOverview } from "../api/persons";
 import type { PersonRequest, RequestStatus } from "../types";
 
 export function AdminView() {
@@ -19,6 +20,8 @@ export function AdminView() {
   const [euipoClientSecret, setEuipoClientSecret] = useState("");
   const [euipoBusy, setEuipoBusy] = useState(false);
   const [euipoMessage, setEuipoMessage] = useState<string | null>(null);
+  const [aiGenBusy, setAiGenBusy] = useState(false);
+  const [aiGenResult, setAiGenResult] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -77,6 +80,20 @@ export function AdminView() {
       setEuipoMessage(lang === "et" ? "EUIPO võtmed salvestatud." : "EUIPO credentials saved.");
     } finally {
       setEuipoBusy(false);
+    }
+  }
+
+  async function handleGenerateAi() {
+    if (!active?.personId) return;
+    setAiGenBusy(true);
+    setAiGenResult(null);
+    try {
+      const result = await generateAiOverview(active.personId);
+      setAiGenResult(result.overview);
+    } catch {
+      setAiGenResult(lang === "et" ? "Viga AI genereerimisel." : "Error generating AI overview.");
+    } finally {
+      setAiGenBusy(false);
     }
   }
 
@@ -213,6 +230,7 @@ export function AdminView() {
                 <tr>
                   <th>ID</th>
                   <th>{lang === "et" ? "Subjekt" : "Subject"}</th>
+                  <th>{lang === "et" ? "Tüüp" : "Type"}</th>
                   <th>{lang === "et" ? "Esitatud" : "Submitted"}</th>
                   <th>Status</th>
                 </tr>
@@ -221,7 +239,7 @@ export function AdminView() {
                 {items.map((r) => (
                   <tr
                     key={r.id}
-                    onClick={() => setActiveId(r.id)}
+                    onClick={() => { setActiveId(r.id); setAiGenResult(null); }}
                     style={{
                       cursor: "pointer",
                       background: activeId === r.id ? "var(--bg-2)" : undefined,
@@ -230,6 +248,11 @@ export function AdminView() {
                     <td className="mono muted">{r.id.slice(0, 8)}</td>
                     <td>
                       <strong>{r.targetPersonName}</strong>
+                    </td>
+                    <td>
+                      <span className={"chip" + (r.type === "AI_OVERVIEW" ? " active" : "")} style={{ cursor: "default" }}>
+                        {r.type === "AI_OVERVIEW" ? "AI" : lang === "et" ? "Uus isik" : "New person"}
+                      </span>
                     </td>
                     <td className="mono muted">
                       {new Date(r.createdAt).toISOString().slice(0, 10)}
@@ -302,6 +325,26 @@ export function AdminView() {
                   <span className="pulse" /> {active.status}
                 </span>
               </div>
+              {active.type === "AI_OVERVIEW" && active.personId && (
+                <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
+                  <div className="mono" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--ink-3)", marginBottom: 8 }}>
+                    {t.ai_overview_h}
+                  </div>
+                  <button
+                    className="btn sm primary"
+                    onClick={handleGenerateAi}
+                    disabled={aiGenBusy}
+                    style={{ marginBottom: aiGenResult ? 10 : 0 }}
+                  >
+                    <Icon name="sparkles" size={12} /> {aiGenBusy ? t.admin_gen_ai_busy : t.admin_gen_ai}
+                  </button>
+                  {aiGenResult && (
+                    <p style={{ fontSize: 13, marginTop: 8, whiteSpace: "pre-line", color: "var(--ink-2)" }}>
+                      {aiGenResult}
+                    </p>
+                  )}
+                </div>
+              )}
               {active.status === "PENDING" && (
                 <div
                   className="row"

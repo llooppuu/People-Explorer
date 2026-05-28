@@ -1,10 +1,16 @@
 import { Request, Response } from "express";
 import * as requestService from "../services/requestService";
-import { createRequestSchema, requestQuerySchema, updateRequestSchema } from "../validators/requestSchemas";
+import { createAiOverviewRequestSchema, createRequestSchema, requestQuerySchema, updateRequestSchema } from "../validators/requestSchemas";
 
 export async function createRequest(req: Request, res: Response) {
   const input = createRequestSchema.parse(req.body);
   const request = await requestService.createRequest(req.user!.id, req.user!.trustScore, input);
+  res.status(201).json(request);
+}
+
+export async function createAiOverviewRequest(req: Request, res: Response) {
+  const input = createAiOverviewRequestSchema.parse(req.body);
+  const request = await requestService.createAiOverviewRequest(req.user!.id, input.personId);
   res.status(201).json(request);
 }
 

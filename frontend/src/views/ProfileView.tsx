@@ -4,7 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useUi } from "../context/UiContext";
 import { useT } from "../i18n";
 import { useAuth } from "../context/AuthContext";
-import { addTagToPerson, getPerson } from "../api/persons";
+import { addTagToPerson, generateAiOverview, getPerson, requestAiOverview } from "../api/persons";
 import { addToWatchlist, listWatchlist, removeFromWatchlist } from "../api/watchlist";
 import type { Person, WatchlistItem } from "../types";
 import { Icon, initials } from "../components/Icon";
@@ -22,6 +22,11 @@ export function ProfileView() {
   const [error, setError] = useState<string | null>(null);
   const [newTag, setNewTag] = useState("");
   const [tagError, setTagError] = useState<string | null>(null);
+  const [aiOverview, setAiOverview] = useState<string | null | undefined>(undefined);
+  const [aiGenBusy, setAiGenBusy] = useState(false);
+  const [aiReqDone, setAiReqDone] = useState(false);
+  const { user } = useAuth();
+  const isAdmin = user?.role === "ADMIN";
 
   useEffect(() => {
     if (!id) return;
@@ -30,7 +35,10 @@ export function ProfileView() {
     setError(null);
     getPerson(id)
       .then((p) => {
-        if (active) setPerson(p);
+        if (active) {
+          setPerson(p);
+          setAiOverview(p.aiOverview ?? null);
+        }
       })
       .catch(() => {
         if (active) setError(t.error_generic);
@@ -74,6 +82,29 @@ export function ProfileView() {
     } else {
       const created = await addToWatchlist(person!.id);
       setWatchlist((list) => [...list, created]);
+    }
+  }
+
+  async function handleGenerateAiOverview() {
+    if (!person) return;
+    setAiGenBusy(true);
+    try {
+      const result = await generateAiOverview(person.id);
+      setAiOverview(result.overview);
+    } catch {
+      // error shown inline
+    } finally {
+      setAiGenBusy(false);
+    }
+  }
+
+  async function handleRequestAiOverview() {
+    if (!person) return;
+    try {
+      await requestAiOverview(person.id);
+      setAiReqDone(true);
+    } catch {
+      // ignore duplicate request errors
     }
   }
 
@@ -169,6 +200,43 @@ export function ProfileView() {
               ))}
             </div>
           )}
+
+          <div className="aside-card" style={{ marginTop: 24 }}>
+            <h3 style={{ fontFamily: "var(--mono)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--ink-3)", margin: "0 0 12px 0" }}>
+              {t.ai_overview_h}
+            </h3>
+            {aiOverview ? (
+              <p className="bio" style={{ whiteSpace: "pre-line" }}>{aiOverview}</p>
+            ) : (
+              <p className="muted" style={{ fontSize: 13 }}>
+                {lang === "et" ? "AI ülevaade puudub." : "No AI overview available."}
+              </p>
+            )}
+            {isAdmin && (
+              <button
+                className="btn sm primary"
+                style={{ marginTop: 10 }}
+                onClick={handleGenerateAiOverview}
+                disabled={aiGenBusy}
+              >
+                <Icon name="sparkles" size={12} /> {aiGenBusy ? t.admin_gen_ai_busy : t.admin_gen_ai}
+              </button>
+            )}
+            {isAuthenticated && !isAdmin && !aiReqDone && (
+              <button
+                className="btn sm"
+                style={{ marginTop: 10 }}
+                onClick={handleRequestAiOverview}
+              >
+                {t.ai_overview_req}
+              </button>
+            )}
+            {aiReqDone && (
+              <span className="muted" style={{ fontSize: 12, marginTop: 8, display: "block" }}>
+                {t.ai_overview_req_sent}
+              </span>
+            )}
+          </div>
 
           <div className="aside-card" style={{ marginTop: 24 }}>
             <h3>{t.profile_tags}</h3>

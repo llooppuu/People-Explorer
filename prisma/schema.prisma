@@ -25,6 +25,11 @@ enum RequestStatus {
   REJECTED
 }
 
+enum RequestType {
+  ADD_PERSON
+  AI_OVERVIEW
+}
+
 model User {
   id               String      @id @default(cuid())
   email            String      @unique
@@ -44,10 +49,12 @@ model Person {
   category   String
   isPublic   Boolean     @default(false)
   biography  String?
+  aiOverview String?
   createdAt  DateTime    @default(now())
   references Reference[]
   tags       PersonTag[]
   watchlists Watchlist[]
+  requests   Request[]
 
   @@index([fullName])
   @@index([isPublic])
@@ -93,14 +100,18 @@ model Request {
   id               String        @id @default(cuid())
   requesterId      String
   targetPersonName String
+  type             RequestType   @default(ADD_PERSON)
+  personId         String?
   status           RequestStatus @default(PENDING)
   createdAt        DateTime      @default(now())
   reviewedAt       DateTime?
   reviewerId       String?
   requester        User          @relation("RequesterRequests", fields: [requesterId], references: [id], onDelete: Cascade)
   reviewer         User?         @relation("ReviewerRequests", fields: [reviewerId], references: [id], onDelete: SetNull)
+  person           Person?       @relation(fields: [personId], references: [id], onDelete: SetNull)
 
   @@index([status])
+  @@index([type])
 }
 
 model Watchlist {

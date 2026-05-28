@@ -23,3 +23,12 @@ export async function addTagToPerson(personId: string, name: string, color?: str
   const { data } = await api.post(`/persons/${personId}/tags`, { name, color });
   return data;
 }
+
+export async function generateAiOverview(personId: string): Promise<{ overview: string }> {
+  const { data } = await api.post<{ overview: string }>(`/persons/${personId}/ai-overview`);
+  return data;
+}
+
+export async function requestAiOverview(personId: string): Promise<void> {
+  await api.post("/requests/ai-overview", { personId });
+}

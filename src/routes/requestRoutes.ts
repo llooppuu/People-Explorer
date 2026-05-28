@@ -7,5 +7,6 @@ import { requireRole } from "../middleware/requireRole";
 export const requestRoutes = Router();
 
 requestRoutes.post("/", authMiddleware, asyncHandler(requestController.createRequest));
+requestRoutes.post("/ai-overview", authMiddleware, asyncHandler(requestController.createAiOverviewRequest));
 requestRoutes.get("/", authMiddleware, requireRole("ADMIN"), asyncHandler(requestController.getRequests));
 requestRoutes.put("/:id", authMiddleware, requireRole("ADMIN"), asyncHandler(requestController.updateRequest));

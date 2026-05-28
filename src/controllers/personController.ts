@@ -12,3 +12,8 @@ export async function getPerson(req: Request, res: Response) {
   const person = await personService.getPersonById(String(req.params.id), req.user?.role === "ADMIN");
   res.json(person);
 }
+
+export async function generateAiOverview(req: Request, res: Response) {
+  const overview = await personService.generatePersonAiOverview(String(req.params.id));
+  res.json({ overview });
+}

@@ -4,6 +4,7 @@ import { PersonQueryInput } from "../validators/personSchemas";
 import { fetchProfileForPerson, fetchProfileSectionsForPerson as fetchWikidataProfileSections } from "../integrations/clients/wikidataClient";
 import { fetchProfileSectionsForPerson as fetchRiigikoguProfileSections } from "../integrations/clients/riigikoguClient";
 import { ExternalReferenceCandidate, PersonProfileSection } from "../integrations/types";
+import { generateAiOverview as callAiOverview } from "./aiService";
 
 type ExternalPersonProfile = NonNullable<ExternalReferenceCandidate["personProfile"]>;
 
@@ -96,4 +97,34 @@ export async function getPersonById(id: string, isAdmin: boolean) {
   );
 
   return profileFromReferences(person, externalProfile, profileSections);
+}
+
+export async function generatePersonAiOverview(id: string): Promise<string> {
+  const person = await prisma.person.findUnique({
+    where: { id },
+    include: { references: { include: { dataSource: true } } }
+  });
+
+  if (!person) {
+    throw new AppError(404, "Person not found");
+  }
+
+  const riigikoguDetailUrl = person.references.find((r) => r.dataSource?.name === "Riigikogu API")?.url;
+  const [, riigikoguSections, wikidataSections] = await Promise.all([
+    fetchProfileForPerson(person.fullName).catch(() => undefined),
+    fetchRiigikoguProfileSections(person.fullName, riigikoguDetailUrl).catch(() => []),
+    fetchWikidataProfileSections(person.fullName).catch(() => [])
+  ]);
+  const profileSections = [...wikidataSections, ...riigikoguSections].filter(
+    (s, i, arr) => arr.findIndex((x) => x.id === s.id) === i
+  );
+
+  const overview = await callAiOverview({ ...person, profileSections });
+
+  await prisma.person.update({
+    where: { id },
+    data: { aiOverview: overview }
+  });
+
+  return overview;
 }

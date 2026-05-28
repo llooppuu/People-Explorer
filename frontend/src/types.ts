@@ -42,6 +42,7 @@ export interface Person {
   category: string;
   isPublic: boolean;
   biography?: string | null;
+  aiOverview?: string | null;
   localizedProfile?: {
     et?: {
       role?: string | null;
@@ -68,11 +69,14 @@ export interface Person {
 }
 
 export type RequestStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type RequestType = "ADD_PERSON" | "AI_OVERVIEW";
 
 export interface PersonRequest {
   id: string;
   requesterId: string;
   targetPersonName: string;
+  type: RequestType;
+  personId?: string | null;
   status: RequestStatus;
   createdAt: string;
   reviewedAt?: string | null;

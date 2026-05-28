@@ -4,6 +4,7 @@ import { ExternalReferenceCandidate } from "../integrations/types";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/errorHandler";
 import { CreateRequestInput, RequestQueryInput, UpdateRequestInput } from "../validators/requestSchemas";
+import { generateAiOverview } from "./aiService";
 
 const TRUST_DELTA_APPROVE = 10;
 const TRUST_DELTA_REJECT = -5;
@@ -193,12 +194,66 @@ export async function updateRequest(id: string, reviewerId: string, input: Updat
   });
 
   if (input.status === "APPROVED") {
-    await ensurePublicPerson(existing.targetPersonName);
+    if (existing.type === "AI_OVERVIEW" && existing.personId) {
+      await triggerAiOverviewForPerson(existing.personId);
+    } else {
+      await ensurePublicPerson(existing.targetPersonName);
+    }
   }
 
   await adjustRequesterTrust(existing.requesterId, input.status);
 
   return updated;
+}
+
+async function triggerAiOverviewForPerson(personId: string) {
+  const person = await prisma.person.findUnique({
+    where: { id: personId },
+    include: { references: { include: { dataSource: true } } }
+  });
+
+  if (!person) {
+    return;
+  }
+
+  try {
+    const { generateAiOverview } = await import("./aiService");
+    const overview = await generateAiOverview(person);
+    await prisma.person.update({
+      where: { id: personId },
+      data: { aiOverview: overview }
+    });
+  } catch {
+    // AI is optional — failure does not block request approval
+  }
+}
+
+export async function createAiOverviewRequest(requesterId: string, personId: string) {
+  const person = await prisma.person.findFirst({
+    where: { id: personId, isPublic: true }
+  });
+
+  if (!person) {
+    throw new AppError(404, "Person not found");
+  }
+
+  const existing = await prisma.request.findFirst({
+    where: { requesterId, personId, type: "AI_OVERVIEW", status: "PENDING" }
+  });
+
+  if (existing) {
+    throw new AppError(409, "A pending AI overview request already exists for this person");
+  }
+
+  return prisma.request.create({
+    data: {
+      requesterId,
+      targetPersonName: person.fullName,
+      type: "AI_OVERVIEW",
+      personId,
+      status: "PENDING"
+    }
+  });
 }
 
 async function adjustRequesterTrust(requesterId: string, status: "APPROVED" | "REJECTED") {

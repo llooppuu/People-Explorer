@@ -2,7 +2,15 @@ import { useEffect, useState } from "react";
 import { Icon } from "../components/Icon";
 import { useUi } from "../context/UiContext";
 import { useT } from "../i18n";
-import { getEuipoSettings, updateEuipoSettings, type EuipoSettingsStatus } from "../api/integrations";
+import {
+  getAiSettings,
+  getEuipoSettings,
+  updateAiSettings,
+  updateEuipoSettings,
+  type AiProvider,
+  type AiSettingsStatus,
+  type EuipoSettingsStatus,
+} from "../api/integrations";
 import { listRequests, updateRequest } from "../api/requests";
 import { generateAiOverview } from "../api/persons";
 import type { PersonRequest, RequestStatus } from "../types";
@@ -22,6 +30,15 @@ export function AdminView() {
   const [euipoMessage, setEuipoMessage] = useState<string | null>(null);
   const [aiGenBusy, setAiGenBusy] = useState(false);
   const [aiGenResult, setAiGenResult] = useState<string | null>(null);
+  const [aiSettings, setAiSettings] = useState<AiSettingsStatus | null>(null);
+  const [aiProvider, setAiProvider] = useState<AiProvider>("OLLAMA");
+  const [aiOllamaUrl, setAiOllamaUrl] = useState("");
+  const [aiOllamaModel, setAiOllamaModel] = useState("");
+  const [aiOpenaiKey, setAiOpenaiKey] = useState("");
+  const [aiOpenaiModel, setAiOpenaiModel] = useState("");
+  const [aiOpenaiBaseUrl, setAiOpenaiBaseUrl] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiMessage, setAiMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -49,10 +66,25 @@ export function AdminView() {
       setEuipoClientId(settings.clientId ?? "");
     });
 
+    getAiSettings().then((settings) => {
+      if (!active) return;
+      applyAiSettings(settings);
+    });
+
     return () => {
       active = false;
     };
   }, []);
+
+  function applyAiSettings(settings: AiSettingsStatus) {
+    setAiSettings(settings);
+    setAiProvider(settings.provider);
+    setAiOllamaUrl(settings.ollama.urlSource === "database" ? settings.ollama.url ?? "" : "");
+    setAiOllamaModel(settings.ollama.modelSource === "database" ? settings.ollama.model : "");
+    setAiOpenaiKey("");
+    setAiOpenaiModel(settings.openai.modelSource === "database" ? settings.openai.model : "");
+    setAiOpenaiBaseUrl(settings.openai.baseUrlSource === "database" ? settings.openai.baseUrl : "");
+  }
 
   const active = items.find((r) => r.id === activeId) ?? null;
 
@@ -80,6 +112,25 @@ export function AdminView() {
       setEuipoMessage(lang === "et" ? "EUIPO võtmed salvestatud." : "EUIPO credentials saved.");
     } finally {
       setEuipoBusy(false);
+    }
+  }
+
+  async function saveAi() {
+    setAiBusy(true);
+    setAiMessage(null);
+    try {
+      const settings = await updateAiSettings({
+        provider: aiProvider,
+        ollamaUrl: aiOllamaUrl.trim() || null,
+        ollamaModel: aiOllamaModel.trim() || null,
+        openaiApiKey: aiOpenaiKey.trim() || undefined,
+        openaiModel: aiOpenaiModel.trim() || null,
+        openaiBaseUrl: aiOpenaiBaseUrl.trim() || null,
+      });
+      applyAiSettings(settings);
+      setAiMessage(lang === "et" ? "AI seaded salvestatud." : "AI settings saved.");
+    } finally {
+      setAiBusy(false);
     }
   }
 
@@ -123,6 +174,163 @@ export function AdminView() {
               {filterLabels[s]}
             </button>
           ))}
+        </div>
+      </div>
+
+      <div
+        style={{
+          border: "1px solid var(--line)",
+          borderRadius: "var(--radius)",
+          background: "var(--surface)",
+          padding: 16,
+          marginBottom: 18,
+        }}
+      >
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+          <div>
+            <strong>{lang === "et" ? "AI teenusepakkuja" : "AI provider"}</strong>
+            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+              {lang === "et"
+                ? "Vali kasutatav AI teenus ning seadista vastavad võtmed. Tühjad väljad pärinevad .env failist."
+                : "Pick which AI service to use and configure its credentials. Empty fields fall back to .env."}
+            </div>
+          </div>
+          <span
+            className={
+              "status " +
+              ((aiProvider === "OPENAI" ? aiSettings?.openai.configured : aiSettings?.ollama.configured)
+                ? "approved"
+                : "pending")
+            }
+          >
+            <span className="pulse" />{" "}
+            {aiProvider === "OPENAI"
+              ? aiSettings?.openai.configured
+                ? lang === "et"
+                  ? "OpenAI seadistatud"
+                  : "OpenAI configured"
+                : lang === "et"
+                ? "OpenAI seadistamata"
+                : "OpenAI not configured"
+              : aiSettings?.ollama.configured
+              ? aiSettings.ollama.online
+                ? lang === "et"
+                  ? "Ollama online"
+                  : "Ollama online"
+                : lang === "et"
+                ? "Ollama offline"
+                : "Ollama offline"
+              : lang === "et"
+              ? "Ollama seadistamata"
+              : "Ollama not configured"}
+          </span>
+        </div>
+        <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
+          <label>
+            <div className="mono muted" style={{ fontSize: 10, textTransform: "uppercase", marginBottom: 5 }}>
+              {lang === "et" ? "Teenusepakkuja" : "Provider"}
+            </div>
+            <select
+              className="input"
+              value={aiProvider}
+              onChange={(event) => setAiProvider(event.target.value as AiProvider)}
+              style={{ width: "100%" }}
+            >
+              <option value="OLLAMA">Ollama</option>
+              <option value="OPENAI">OpenAI</option>
+            </select>
+          </label>
+
+          {aiProvider === "OLLAMA" ? (
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)", gap: 10 }}>
+              <label>
+                <div className="mono muted" style={{ fontSize: 10, textTransform: "uppercase", marginBottom: 5 }}>
+                  Ollama URL
+                </div>
+                <input
+                  className="input"
+                  value={aiOllamaUrl}
+                  onChange={(event) => setAiOllamaUrl(event.target.value)}
+                  placeholder={aiSettings?.ollama.url ?? "http://192.168.1.42:11434"}
+                  style={{ width: "100%" }}
+                />
+              </label>
+              <label>
+                <div className="mono muted" style={{ fontSize: 10, textTransform: "uppercase", marginBottom: 5 }}>
+                  {lang === "et" ? "Mudel" : "Model"}
+                </div>
+                <input
+                  className="input"
+                  value={aiOllamaModel}
+                  onChange={(event) => setAiOllamaModel(event.target.value)}
+                  placeholder={aiSettings?.ollama.model ?? "llama3"}
+                  style={{ width: "100%" }}
+                />
+              </label>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 10 }}>
+              <label>
+                <div className="mono muted" style={{ fontSize: 10, textTransform: "uppercase", marginBottom: 5 }}>
+                  API key
+                </div>
+                <input
+                  className="input"
+                  type="password"
+                  value={aiOpenaiKey}
+                  onChange={(event) => setAiOpenaiKey(event.target.value)}
+                  placeholder={aiSettings?.openai.apiKeyPreview ?? "sk-..."}
+                  style={{ width: "100%" }}
+                />
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 2fr)", gap: 10 }}>
+                <label>
+                  <div className="mono muted" style={{ fontSize: 10, textTransform: "uppercase", marginBottom: 5 }}>
+                    {lang === "et" ? "Mudel" : "Model"}
+                  </div>
+                  <input
+                    className="input"
+                    value={aiOpenaiModel}
+                    onChange={(event) => setAiOpenaiModel(event.target.value)}
+                    placeholder={aiSettings?.openai.model ?? "gpt-4o-mini"}
+                    style={{ width: "100%" }}
+                  />
+                </label>
+                <label>
+                  <div className="mono muted" style={{ fontSize: 10, textTransform: "uppercase", marginBottom: 5 }}>
+                    Base URL
+                  </div>
+                  <input
+                    className="input"
+                    value={aiOpenaiBaseUrl}
+                    onChange={(event) => setAiOpenaiBaseUrl(event.target.value)}
+                    placeholder={aiSettings?.openai.baseUrl ?? "https://api.openai.com/v1"}
+                    style={{ width: "100%" }}
+                  />
+                </label>
+              </div>
+            </div>
+          )}
+
+          <div className="row" style={{ justifyContent: "flex-end" }}>
+            <button className="btn primary" onClick={saveAi} disabled={aiBusy}>
+              <Icon name="check" size={14} /> {lang === "et" ? "Salvesta" : "Save"}
+            </button>
+          </div>
+        </div>
+        <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+          {aiMessage ??
+            (aiSettings?.source === "environment"
+              ? lang === "et"
+                ? "Praegu kasutatakse .env väärtuseid; salvestamine asendab need andmebaasi seadistusega."
+                : "Currently using .env values; saving here switches to database settings."
+              : aiSettings?.source === "none"
+              ? lang === "et"
+                ? "AI ei ole seadistatud — vali teenusepakkuja ja sisesta võtmed."
+                : "AI is not configured yet — pick a provider and enter credentials."
+              : lang === "et"
+              ? "Salvestatud võtmeid hoitakse serveripoolselt; placeholder näitab viimaseid nelja märki."
+              : "Saved credentials are stored server-side; the placeholder shows the last four characters.")}
         </div>
       </div>
 

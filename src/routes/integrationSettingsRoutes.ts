@@ -9,3 +9,5 @@ export const integrationSettingsRoutes = Router();
 integrationSettingsRoutes.use(authMiddleware, requireRole("ADMIN"));
 integrationSettingsRoutes.get("/euipo", asyncHandler(integrationSettingsController.getEuipoSettings));
 integrationSettingsRoutes.put("/euipo", asyncHandler(integrationSettingsController.updateEuipoSettings));
+integrationSettingsRoutes.get("/ai", asyncHandler(integrationSettingsController.getAiSettings));
+integrationSettingsRoutes.put("/ai", asyncHandler(integrationSettingsController.updateAiSettings));

@@ -1,4 +1,6 @@
 import * as cheerio from "cheerio";
+import { runAiPrompt } from "./aiService";
+import { getEffectiveAiConfig } from "./aiSettingsService";
 
 export type WebSearchResult = {
   title: string;
@@ -110,24 +112,13 @@ export async function searchPersonOnWeb(query: string, sites?: string[]): Promis
   return [...merged.values()].slice(0, MAX_RESULTS);
 }
 
-type OllamaResponse = {
-  response?: string;
-  message?: { content?: string };
-  error?: string;
-};
+async function summarizeWithAi(personName: string, results: WebSearchResult[]): Promise<string> {
+  if (results.length === 0) return "";
 
-function isOllamaResponse(value: unknown): value is OllamaResponse {
-  return typeof value === "object" && value !== null;
-}
-
-async function summarizeWithOllama(personName: string, results: WebSearchResult[]): Promise<string> {
-  const ollamaUrl = process.env.OLLAMA_URL;
-  if (!ollamaUrl || results.length === 0) {
-    return "";
-  }
-
-  const model = process.env.OLLAMA_MODEL ?? "llama3";
-  const timeoutMs = Number(process.env.OLLAMA_TIMEOUT_MS ?? 90000);
+  const cfg = await getEffectiveAiConfig();
+  const providerReady =
+    cfg.provider === "OPENAI" ? Boolean(cfg.openai.apiKey) : Boolean(cfg.ollama.url);
+  if (!providerReady) return "";
 
   const sourcesText = results
     .map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}\n   ${r.snippet}`)
@@ -135,31 +126,10 @@ async function summarizeWithOllama(personName: string, results: WebSearchResult[
 
   const prompt = `Oled andmeanalüütik. Allpool on veebiotsingu tulemused isiku "${personName}" kohta. Kirjuta lühike eestikeelne kokkuvõte (2-3 lõiku) sellest, mida need allikad isiku kohta räägivad. Maini kindlasti, milliste allikate (numbritega) põhjal kokkuvõte tehtud on. Ära spekulleeri. Kui leiad vasturääkivusi või tundub, et tulemused puudutavad erinevaid isikuid, märgi see ära.\n\nVeebiotsingu tulemused:\n\n${sourcesText}`;
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
   try {
-    const res = await fetch(`${ollamaUrl}/api/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model, prompt, stream: false }),
-      signal: controller.signal
-    });
-
-    if (!res.ok) {
-      return "";
-    }
-
-    const data: unknown = await res.json();
-    if (!isOllamaResponse(data) || data.error) {
-      return "";
-    }
-
-    return (data.response ?? data.message?.content ?? "").trim();
+    return await runAiPrompt(prompt, cfg);
   } catch {
     return "";
-  } finally {
-    clearTimeout(timer);
   }
 }
 
@@ -169,6 +139,6 @@ export async function gatherWebFindings(
 ): Promise<WebSearchFindings> {
   const query = options?.query?.trim() || personName;
   const results = await searchPersonOnWeb(query, options?.sites);
-  const summary = await summarizeWithOllama(personName, results);
+  const summary = await summarizeWithAi(personName, results);
   return { query, results, summary };
 }

@@ -66,7 +66,8 @@ export async function getPublicPersons(query: PersonQueryInput) {
   return prisma.person.findMany({
     where,
     include: {
-      tags: { include: { tag: true } }
+      tags: { include: { tag: true } },
+      references: { include: { dataSource: true } }
     },
     orderBy: { createdAt: "desc" },
     skip: (query.page - 1) * query.limit,

@@ -44,6 +44,15 @@ const SOURCES: Source[] = [
     note: "Vajab API-lepingut RIK-iga; praegu päring ei tagasta kandidaate.",
     noteEn: "Requires a contract with RIK; currently returns no candidates.",
   },
+  {
+    name: "EUIPO Persons",
+    type: "API",
+    desc: "Kaubamärgi ja disaini taotlejad ning esindajad",
+    descEn: "Trademark and design applicants and representatives",
+    state: "limited",
+    note: "Vajab EUIPO klient-ID ja OAuth2 võtmeid.",
+    noteEn: "Requires EUIPO client ID and OAuth2 credentials.",
+  },
 ];
 
 const STATE_LABELS: Record<SourceState, { et: string; en: string; cls: string }> = {

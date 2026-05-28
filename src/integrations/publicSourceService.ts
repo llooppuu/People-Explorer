@@ -1,4 +1,5 @@
 import * as ariregisterClient from "./clients/ariregisterClient";
+import * as euipoClient from "./clients/euipoClient";
 import * as riigikoguClient from "./clients/riigikoguClient";
 import * as riigiteatajaClient from "./clients/riigiteatajaClient";
 import * as wikidataClient from "./clients/wikidataClient";
@@ -12,7 +13,8 @@ const clients: PublicSourceClient[] = [
   ariregisterClient,
   riigikoguClient,
   riigiteatajaClient,
-  wikidataClient
+  wikidataClient,
+  euipoClient
 ];
 
 export async function fetchReferencesForPerson(fullName: string): Promise<ExternalReferenceCandidate[]> {

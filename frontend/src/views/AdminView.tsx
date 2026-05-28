@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "../components/Icon";
 import { useUi } from "../context/UiContext";
 import { useT } from "../i18n";
+import { getEuipoSettings, updateEuipoSettings, type EuipoSettingsStatus } from "../api/integrations";
 import { listRequests, updateRequest } from "../api/requests";
 import type { PersonRequest, RequestStatus } from "../types";
 
@@ -13,6 +14,11 @@ export function AdminView() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [euipoSettings, setEuipoSettings] = useState<EuipoSettingsStatus | null>(null);
+  const [euipoClientId, setEuipoClientId] = useState("");
+  const [euipoClientSecret, setEuipoClientSecret] = useState("");
+  const [euipoBusy, setEuipoBusy] = useState(false);
+  const [euipoMessage, setEuipoMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -31,6 +37,20 @@ export function AdminView() {
     };
   }, [filter]);
 
+  useEffect(() => {
+    let active = true;
+
+    getEuipoSettings().then((settings) => {
+      if (!active) return;
+      setEuipoSettings(settings);
+      setEuipoClientId(settings.clientId ?? "");
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const active = items.find((r) => r.id === activeId) ?? null;
 
   async function decide(status: "APPROVED" | "REJECTED") {
@@ -41,6 +61,22 @@ export function AdminView() {
       setItems((list) => list.map((r) => (r.id === updated.id ? updated : r)));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function saveEuipoSettings() {
+    setEuipoBusy(true);
+    setEuipoMessage(null);
+    try {
+      const settings = await updateEuipoSettings({
+        clientId: euipoClientId,
+        clientSecret: euipoClientSecret
+      });
+      setEuipoSettings(settings);
+      setEuipoClientSecret("");
+      setEuipoMessage(lang === "et" ? "EUIPO võtmed salvestatud." : "EUIPO credentials saved.");
+    } finally {
+      setEuipoBusy(false);
     }
   }
 
@@ -70,6 +106,88 @@ export function AdminView() {
               {filterLabels[s]}
             </button>
           ))}
+        </div>
+      </div>
+
+      <div
+        style={{
+          border: "1px solid var(--line)",
+          borderRadius: "var(--radius)",
+          background: "var(--surface)",
+          padding: 16,
+          marginBottom: 18,
+        }}
+      >
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+          <div>
+            <strong>EUIPO Persons</strong>
+            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+              {lang === "et"
+                ? "Kaubamärgi ja disaini taotlejate ning esindajate API võtmed."
+                : "API credentials for trademark and design applicants and representatives."}
+            </div>
+          </div>
+          <span className={"status " + (euipoSettings?.configured ? "approved" : "pending")}>
+            <span className="pulse" />{" "}
+            {euipoSettings?.configured
+              ? lang === "et"
+                ? "seadistatud"
+                : "configured"
+              : lang === "et"
+              ? "seadistamata"
+              : "not configured"}
+          </span>
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) auto",
+            gap: 10,
+            alignItems: "end",
+            marginTop: 14,
+          }}
+        >
+          <label>
+            <div className="mono muted" style={{ fontSize: 10, textTransform: "uppercase", marginBottom: 5 }}>
+              Client ID
+            </div>
+            <input
+              className="input"
+              value={euipoClientId}
+              onChange={(event) => setEuipoClientId(event.target.value)}
+              style={{ width: "100%" }}
+            />
+          </label>
+          <label>
+            <div className="mono muted" style={{ fontSize: 10, textTransform: "uppercase", marginBottom: 5 }}>
+              Client Secret
+            </div>
+            <input
+              className="input"
+              type="password"
+              value={euipoClientSecret}
+              onChange={(event) => setEuipoClientSecret(event.target.value)}
+              placeholder={euipoSettings?.secretPreview ?? ""}
+              style={{ width: "100%" }}
+            />
+          </label>
+          <button
+            className="btn primary"
+            onClick={saveEuipoSettings}
+            disabled={euipoBusy || !euipoClientId.trim() || !euipoClientSecret.trim()}
+          >
+            <Icon name="check" size={14} /> {lang === "et" ? "Salvesta" : "Save"}
+          </button>
+        </div>
+        <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+          {euipoMessage ??
+            (euipoSettings?.source === "environment"
+              ? lang === "et"
+                ? "Praegu kasutatakse .env väärtuseid; salvestamine asendab need andmebaasi seadistusega."
+                : "Currently using .env values; saving here switches to database settings."
+              : lang === "et"
+              ? "Salvestatud võtit hoitakse serveripoolselt ja frontendi tagasi ei saadeta."
+              : "The saved secret is stored server-side and is not sent back to the frontend.")}
         </div>
       </div>
 

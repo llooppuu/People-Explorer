@@ -1,11 +1,13 @@
+import { useEffect, useState } from "react";
 import { useUi } from "../context/UiContext";
 import { useT } from "../i18n";
+import { getOllamaStatus, type OllamaStatus } from "../api/health";
 
-type SourceState = "active" | "limited" | "stub";
+type SourceState = "active" | "limited" | "stub" | "online" | "offline";
 
 interface Source {
   name: string;
-  type: "API" | "RSS" | "MANUAL";
+  type: "API" | "RSS" | "MANUAL" | "LLM";
   desc: string;
   descEn: string;
   state: SourceState;
@@ -13,7 +15,7 @@ interface Source {
   noteEn?: string;
 }
 
-const SOURCES: Source[] = [
+const STATIC_SOURCES: Source[] = [
   {
     name: "Wikidata",
     type: "API",
@@ -59,11 +61,71 @@ const STATE_LABELS: Record<SourceState, { et: string; en: string; cls: string }>
   active: { et: "aktiivne", en: "active", cls: "approved" },
   limited: { et: "piiratud", en: "limited", cls: "pending" },
   stub: { et: "väljatöötamisel", en: "stub", cls: "pending" },
+  online: { et: "online", en: "online", cls: "approved" },
+  offline: { et: "offline", en: "offline", cls: "rejected" },
 };
+
+function ollamaSource(status: OllamaStatus | null, loading: boolean): Source {
+  if (loading || !status) {
+    return {
+      name: "Ollama",
+      type: "LLM",
+      desc: "Kohalik LLM AI-ülevaadete ja veebipäringu kokkuvõtete jaoks",
+      descEn: "Local LLM for AI overviews and web search summaries",
+      state: "stub",
+      note: "Olekut kontrollitakse…",
+      noteEn: "Checking status…",
+    };
+  }
+
+  if (!status.configured) {
+    return {
+      name: "Ollama",
+      type: "LLM",
+      desc: "Kohalik LLM AI-ülevaadete ja veebipäringu kokkuvõtete jaoks",
+      descEn: "Local LLM for AI overviews and web search summaries",
+      state: "limited",
+      note: `OLLAMA_URL puudub. Mudel: ${status.model}.`,
+      noteEn: `OLLAMA_URL not set. Model: ${status.model}.`,
+    };
+  }
+
+  const note = status.url ? `${status.url} · ${status.model}` : status.model;
+  return {
+    name: "Ollama",
+    type: "LLM",
+    desc: "Kohalik LLM AI-ülevaadete ja veebipäringu kokkuvõtete jaoks",
+    descEn: "Local LLM for AI overviews and web search summaries",
+    state: status.online ? "online" : "offline",
+    note,
+    noteEn: note,
+  };
+}
 
 export function SourcesView() {
   const { lang } = useUi();
   const t = useT(lang);
+  const [ollama, setOllama] = useState<OllamaStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    getOllamaStatus()
+      .then((status) => {
+        if (active) setOllama(status);
+      })
+      .catch(() => {
+        if (active) setOllama({ configured: false, online: false, model: "" });
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const sources = [...STATIC_SOURCES, ollamaSource(ollama, loading)];
 
   return (
     <div className="page">
@@ -71,7 +133,7 @@ export function SourcesView() {
         <div>
           <h2>{t.sources_h}</h2>
           <div className="sub" style={{ marginTop: 4 }}>
-            {SOURCES.length} · {t.sources_sub}
+            {sources.length} · {t.sources_sub}
           </div>
         </div>
       </div>
@@ -85,7 +147,7 @@ export function SourcesView() {
           </tr>
         </thead>
         <tbody>
-          {SOURCES.map((s) => {
+          {sources.map((s) => {
             const stateMeta = STATE_LABELS[s.state];
             const note = lang === "et" ? s.note : s.noteEn;
             return (
@@ -125,8 +187,8 @@ export function SourcesView() {
       </table>
       <div className="muted" style={{ fontSize: 12, marginTop: 12, lineHeight: 1.5 }}>
         {lang === "et"
-          ? "Seis kajastab kliendi-koodi ja võtmete saadavust, mitte reaalajas pingitavat ühendust."
-          : "State reflects client-code coverage and credentials, not a live ping."}
+          ? "Avalikud allikad: seis kajastab kliendi-koodi ja võtmete saadavust. Ollama seis kajastab live ühenduse kontrolli."
+          : "Public sources: state reflects client code and credentials. Ollama state reflects a live connectivity check."}
       </div>
     </div>
   );

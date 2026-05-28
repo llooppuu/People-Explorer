@@ -56,6 +56,34 @@ function isOllamaResponse(value: unknown): value is OllamaResponse {
   return typeof value === "object" && value !== null;
 }
 
+export type OllamaStatus = {
+  configured: boolean;
+  online: boolean;
+  url?: string;
+  model: string;
+};
+
+export async function getOllamaStatus(): Promise<OllamaStatus> {
+  const ollamaUrl = process.env.OLLAMA_URL;
+  const model = process.env.OLLAMA_MODEL ?? "llama3";
+
+  if (!ollamaUrl) {
+    return { configured: false, online: false, model };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 2500);
+
+  try {
+    const res = await fetch(`${ollamaUrl}/api/tags`, { signal: controller.signal });
+    return { configured: true, online: res.ok, url: ollamaUrl, model };
+  } catch {
+    return { configured: true, online: false, url: ollamaUrl, model };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function generateAiOverview(person: PersonData): Promise<string> {
   const ollamaUrl = process.env.OLLAMA_URL;
 

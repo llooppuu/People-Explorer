@@ -152,10 +152,9 @@ input, select, textarea { font-family: inherit; color: inherit; }
 }
 .nav-item:hover { background: var(--bg-3); color: var(--ink); }
 .nav-item.active {
-  background: var(--ink);
-  color: var(--bg);
+  background: var(--accent);
+  color: #fff;
 }
-[data-theme="dark"] .nav-item.active { background: var(--accent); }
 .nav-item .badge {
   font-family: var(--mono);
   font-size: 10px;
@@ -402,11 +401,10 @@ input, select, textarea { font-family: inherit; color: inherit; }
   letter-spacing: 0.02em;
 }
 .chip.active {
-  background: var(--ink);
-  color: var(--bg);
-  border-color: var(--ink);
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
 }
-[data-theme="dark"] .chip.active { background: var(--accent); border-color: var(--accent); }
 .chip .dot {
   width: 6px;
   height: 6px;
@@ -870,8 +868,7 @@ input, select, textarea { font-family: inherit; color: inherit; }
   border-top: 0; border-left: 0; border-right: 0;
 }
 .tab:hover { color: var(--ink); }
-.tab.active { color: var(--ink); border-bottom-color: var(--ink); }
-[data-theme="dark"] .tab.active { border-bottom-color: var(--accent); color: var(--accent); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .tab .num {
   font-family: var(--mono);
   font-size: 10px;

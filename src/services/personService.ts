@@ -5,6 +5,10 @@ import { fetchProfileForPerson, fetchProfileSectionsForPerson as fetchWikidataPr
 import { fetchProfileSectionsForPerson as fetchRiigikoguProfileSections } from "../integrations/clients/riigikoguClient";
 import { ExternalReferenceCandidate, PersonProfileSection } from "../integrations/types";
 import { generateAiOverview as callAiOverview } from "./aiService";
+import { gatherWebFindings, WebSearchFindings, WebSearchResult } from "./webSearchService";
+
+const WEB_SEARCH_SOURCE_NAME = "Veebipäring";
+const WEB_SEARCH_BASE_URL = "https://duckduckgo.com";
 
 type ExternalPersonProfile = NonNullable<ExternalReferenceCandidate["personProfile"]>;
 
@@ -127,4 +131,64 @@ export async function generatePersonAiOverview(id: string): Promise<string> {
   });
 
   return overview;
+}
+
+export async function previewWebSearch(id: string): Promise<WebSearchFindings> {
+  const person = await prisma.person.findUnique({ where: { id } });
+  if (!person) {
+    throw new AppError(404, "Person not found");
+  }
+  return gatherWebFindings(person.fullName);
+}
+
+export async function acceptWebSearchFindings(
+  id: string,
+  results: WebSearchResult[],
+  summary: string | undefined
+) {
+  const person = await prisma.person.findUnique({ where: { id } });
+  if (!person) {
+    throw new AppError(404, "Person not found");
+  }
+
+  let dataSource = await prisma.dataSource.findFirst({
+    where: { name: WEB_SEARCH_SOURCE_NAME }
+  });
+
+  if (!dataSource) {
+    dataSource = await prisma.dataSource.create({
+      data: {
+        name: WEB_SEARCH_SOURCE_NAME,
+        baseUrl: WEB_SEARCH_BASE_URL,
+        sourceType: "MANUAL"
+      }
+    });
+  }
+
+  let savedCount = 0;
+  for (const result of results) {
+    const existing = await prisma.reference.findFirst({
+      where: { personId: id, url: result.url }
+    });
+    if (existing) continue;
+
+    await prisma.reference.create({
+      data: {
+        personId: id,
+        dataSourceId: dataSource.id,
+        url: result.url,
+        content: [result.title, result.snippet].filter(Boolean).join(" - ")
+      }
+    });
+    savedCount += 1;
+  }
+
+  if (summary && summary.trim()) {
+    await prisma.person.update({
+      where: { id },
+      data: { aiOverview: summary.trim() }
+    });
+  }
+
+  return { savedCount };
 }

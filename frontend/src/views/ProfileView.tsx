@@ -4,7 +4,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useUi } from "../context/UiContext";
 import { useT } from "../i18n";
 import { useAuth } from "../context/AuthContext";
-import { addTagToPerson, generateAiOverview, getPerson, requestAiOverview } from "../api/persons";
+import { acceptWebSearch, addTagToPerson, generateAiOverview, getPerson, previewWebSearch, requestAiOverview } from "../api/persons";
+import type { WebSearchFindings } from "../api/persons";
 import { addToWatchlist, listWatchlist, removeFromWatchlist } from "../api/watchlist";
 import type { Person, WatchlistItem } from "../types";
 import { Icon, initials } from "../components/Icon";
@@ -25,6 +26,9 @@ export function ProfileView() {
   const [aiOverview, setAiOverview] = useState<string | null | undefined>(undefined);
   const [aiGenBusy, setAiGenBusy] = useState(false);
   const [aiReqDone, setAiReqDone] = useState(false);
+  const [webBusy, setWebBusy] = useState(false);
+  const [webFindings, setWebFindings] = useState<WebSearchFindings | null>(null);
+  const [webMessage, setWebMessage] = useState<string | null>(null);
   const { user } = useAuth();
   const isAdmin = user?.role === "ADMIN";
 
@@ -96,6 +100,43 @@ export function ProfileView() {
     } finally {
       setAiGenBusy(false);
     }
+  }
+
+  async function handleWebSearch() {
+    if (!person) return;
+    setWebBusy(true);
+    setWebMessage(null);
+    setWebFindings(null);
+    try {
+      const findings = await previewWebSearch(person.id);
+      setWebFindings(findings);
+    } catch {
+      setWebMessage(t.error_generic);
+    } finally {
+      setWebBusy(false);
+    }
+  }
+
+  async function handleAcceptWebSearch() {
+    if (!person || !webFindings) return;
+    setWebBusy(true);
+    try {
+      const { savedCount } = await acceptWebSearch(person.id, webFindings.results, webFindings.summary);
+      if (webFindings.summary) setAiOverview(webFindings.summary);
+      setWebMessage(t.web_search_saved.replace("{n}", String(savedCount)));
+      setWebFindings(null);
+      const fresh = await getPerson(person.id);
+      setPerson(fresh);
+    } catch {
+      setWebMessage(t.error_generic);
+    } finally {
+      setWebBusy(false);
+    }
+  }
+
+  function handleCancelWebSearch() {
+    setWebFindings(null);
+    setWebMessage(null);
   }
 
   async function handleRequestAiOverview() {
@@ -237,6 +278,76 @@ export function ProfileView() {
               </span>
             )}
           </div>
+
+          {isAdmin && (
+            <div className="aside-card" style={{ marginTop: 24 }}>
+              <h3 style={{ fontFamily: "var(--mono)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--ink-3)", margin: "0 0 12px 0" }}>
+                {t.web_search_h}
+              </h3>
+              {!webFindings && (
+                <>
+                  <p className="muted" style={{ fontSize: 13, marginBottom: 10 }}>
+                    {lang === "et"
+                      ? `Otsib veebist nime "${person.fullName}" järgi ja teeb AI-kokkuvõtte. Tulemusi näed enne salvestamist.`
+                      : `Searches the web for "${person.fullName}" and runs an AI summary. Review before saving.`}
+                  </p>
+                  <button
+                    className="btn sm primary"
+                    onClick={handleWebSearch}
+                    disabled={webBusy}
+                  >
+                    <Icon name="search" size={12} /> {webBusy ? t.web_search_busy : t.web_search_run}
+                  </button>
+                </>
+              )}
+              {webFindings && webFindings.results.length === 0 && (
+                <p className="muted" style={{ fontSize: 13 }}>{t.web_search_empty}</p>
+              )}
+              {webFindings && webFindings.results.length > 0 && (
+                <div>
+                  <div className="mono" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--ink-3)", marginBottom: 8 }}>
+                    {t.web_search_results} ({webFindings.results.length})
+                  </div>
+                  <ul style={{ listStyle: "none", padding: 0, margin: "0 0 12px 0", display: "flex", flexDirection: "column", gap: 10 }}>
+                    {webFindings.results.map((r) => (
+                      <li key={r.url} style={{ borderLeft: "2px solid var(--line)", paddingLeft: 10 }}>
+                        <a href={r.url} target="_blank" rel="noreferrer" style={{ fontWeight: 500, textDecoration: "underline", fontSize: 13 }}>
+                          {r.title}
+                        </a>
+                        <div className="muted" style={{ fontSize: 11, wordBreak: "break-all" }}>{r.url}</div>
+                        {r.snippet && (
+                          <p style={{ fontSize: 12, margin: "4px 0 0 0", color: "var(--ink-2)" }}>{r.snippet}</p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  {webFindings.summary && (
+                    <>
+                      <div className="mono" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--ink-3)", marginBottom: 6 }}>
+                        {t.web_search_summary}
+                      </div>
+                      <p style={{ fontSize: 13, whiteSpace: "pre-line", color: "var(--ink-2)", marginBottom: 12 }}>
+                        {webFindings.summary}
+                      </p>
+                    </>
+                  )}
+                  <div className="row" style={{ gap: 6 }}>
+                    <button className="btn sm primary" onClick={handleAcceptWebSearch} disabled={webBusy}>
+                      <Icon name="check" size={12} /> {t.web_search_accept}
+                    </button>
+                    <button className="btn sm" onClick={handleCancelWebSearch} disabled={webBusy}>
+                      <Icon name="x" size={12} /> {t.web_search_cancel}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {webMessage && (
+                <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+                  {webMessage}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="aside-card" style={{ marginTop: 24 }}>
             <h3>{t.profile_tags}</h3>

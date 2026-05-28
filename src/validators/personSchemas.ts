@@ -9,3 +9,18 @@ export const personQuerySchema = z.object({
 });
 
 export type PersonQueryInput = z.infer<typeof personQuerySchema>;
+
+export const acceptWebSearchSchema = z.object({
+  results: z
+    .array(
+      z.object({
+        title: z.string().min(1),
+        url: z.string().url(),
+        snippet: z.string().default("")
+      })
+    )
+    .min(1),
+  summary: z.string().optional()
+});
+
+export type AcceptWebSearchInput = z.infer<typeof acceptWebSearchSchema>;

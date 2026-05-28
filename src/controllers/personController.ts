@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import * as personService from "../services/personService";
-import { personQuerySchema } from "../validators/personSchemas";
+import { acceptWebSearchSchema, personQuerySchema } from "../validators/personSchemas";
 
 export async function getPersons(req: Request, res: Response) {
   const query = personQuerySchema.parse(req.query);
@@ -16,4 +16,19 @@ export async function getPerson(req: Request, res: Response) {
 export async function generateAiOverview(req: Request, res: Response) {
   const overview = await personService.generatePersonAiOverview(String(req.params.id));
   res.json({ overview });
+}
+
+export async function previewWebSearch(req: Request, res: Response) {
+  const findings = await personService.previewWebSearch(String(req.params.id));
+  res.json(findings);
+}
+
+export async function acceptWebSearch(req: Request, res: Response) {
+  const input = acceptWebSearchSchema.parse(req.body);
+  const result = await personService.acceptWebSearchFindings(
+    String(req.params.id),
+    input.results,
+    input.summary
+  );
+  res.json(result);
 }

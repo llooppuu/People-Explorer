@@ -1,0 +1,83 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dpe_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dpe
+      POSTGRES_PASSWORD: dpe_password
+      POSTGRES_DB: dpe_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dpe -d dpe_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: dpe_backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgresql://dpe:dpe_password@postgres:5432/dpe_db?schema=public"
+      JWT_SECRET: "${JWT_SECRET:-change_me}"
+      PORT: "3000"
+      PUBLIC_API_TIMEOUT_MS: "5000"
+      AI_PROVIDER: "${AI_PROVIDER:-OLLAMA}"
+      OLLAMA_URL: "${OLLAMA_URL:-}"
+      OLLAMA_MODEL: "${OLLAMA_MODEL:-gpt-oss:20b}"
+      OLLAMA_TIMEOUT_MS: "${OLLAMA_TIMEOUT_MS:-90000}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OPENAI_MODEL: "${OPENAI_MODEL:-gpt-4o-mini}"
+      OPENAI_BASE_URL: "${OPENAI_BASE_URL:-https://api.openai.com/v1}"
+      EUIPO_CLIENT_ID: "${EUIPO_CLIENT_ID:-}"
+      EUIPO_CLIENT_SECRET: "${EUIPO_CLIENT_SECRET:-}"
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./src:/app/src
+      - ./prisma:/app/prisma
+      - ./package.json:/app/package.json
+      - ./package-lock.json:/app/package-lock.json
+      - ./tsconfig.json:/app/tsconfig.json
+      - backend_node_modules:/app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "npx prisma generate &&
+             npx prisma migrate deploy &&
+             npx prisma db seed &&
+             npm run dev"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: dpe_frontend
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: "http://backend:3000"
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/package.json:/app/package.json
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  backend_node_modules:
+  frontend_node_modules:

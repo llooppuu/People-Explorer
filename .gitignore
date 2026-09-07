@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+**/dist/
+build/
+
+# Environment
+.env
+.env.local
+*.local
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs and debug artefacts
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+debug/
+*.tmp
+
+# Coverage
+coverage/
+
+# Claude Code design scratch (kept locally for reference, not part of the project)
+People_Explorer_Claude_Design/
+.claude/

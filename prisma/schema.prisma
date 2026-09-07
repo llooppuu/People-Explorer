@@ -1,0 +1,148 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum SourceType {
+  API
+  RSS
+  MANUAL
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RequestType {
+  ADD_PERSON
+  AI_OVERVIEW
+}
+
+model User {
+  id               String      @id @default(cuid())
+  email            String      @unique
+  passwordHash     String
+  role             UserRole    @default(USER)
+  trustScore       Int         @default(0)
+  createdAt        DateTime    @default(now())
+  requests         Request[]   @relation("RequesterRequests")
+  reviewedRequests Request[]   @relation("ReviewerRequests")
+  watchlist        Watchlist[]
+}
+
+model Person {
+  id         String      @id @default(cuid())
+  fullName   String
+  role       String
+  category   String
+  isPublic   Boolean     @default(false)
+  biography  String?
+  aiOverview String?
+  createdAt  DateTime    @default(now())
+  references Reference[]
+  tags       PersonTag[]
+  watchlists Watchlist[]
+  requests   Request[]
+
+  @@index([fullName])
+  @@index([isPublic])
+}
+
+model DataSource {
+  id         String      @id @default(cuid())
+  name       String
+  baseUrl    String
+  sourceType SourceType
+  references Reference[]
+}
+
+model Reference {
+  id           String     @id @default(cuid())
+  personId     String
+  dataSourceId String
+  url          String
+  content      String?
+  fetchedAt    DateTime   @default(now())
+  person       Person     @relation(fields: [personId], references: [id], onDelete: Cascade)
+  dataSource   DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+}
+
+model Tag {
+  id     String      @id @default(cuid())
+  name   String      @unique
+  color  String?
+  people PersonTag[]
+}
+
+model PersonTag {
+  personId  String
+  tagId     String
+  createdAt DateTime @default(now())
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([personId, tagId])
+}
+
+model Request {
+  id               String        @id @default(cuid())
+  requesterId      String
+  targetPersonName String
+  type             RequestType   @default(ADD_PERSON)
+  personId         String?
+  status           RequestStatus @default(PENDING)
+  createdAt        DateTime      @default(now())
+  reviewedAt       DateTime?
+  reviewerId       String?
+  requester        User          @relation("RequesterRequests", fields: [requesterId], references: [id], onDelete: Cascade)
+  reviewer         User?         @relation("ReviewerRequests", fields: [reviewerId], references: [id], onDelete: SetNull)
+  person           Person?       @relation(fields: [personId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([type])
+}
+
+model Watchlist {
+  id        String   @id @default(cuid())
+  userId    String
+  personId  String
+  note      String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, personId])
+}
+
+model IntegrationCredential {
+  id           String   @id @default(cuid())
+  provider     String   @unique
+  clientId     String
+  clientSecret String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AiSetting {
+  id            String   @id @default("default")
+  provider      String   @default("OLLAMA")
+  ollamaUrl     String?
+  ollamaModel   String?
+  openaiApiKey  String?
+  openaiModel   String?
+  openaiBaseUrl String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
